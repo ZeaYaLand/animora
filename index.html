@@ -58,7 +58,7 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
   <div class="filters" id="filters"></div>
   <div class="status" id="status" role="status">Подключаем каталог AniList…</div><div class="grid" id="grid"></div><div class="load-row"><button class="btn" id="loadMore" hidden>Загрузить ещё</button></div>
 </main>
-<footer><div class="wrap foot"><div class="brand"><span class="mark">A</span><span>ANI<span>MORA</span></span></div><div>ANIMORA · Каталог аниме</div><div>Чёрный × Фиолетовый</div></div><div class="wrap notice">Основной каталог: anime-offline-database (ODbL-1.0 + DbCL-1.0, авторство cedya77/anime-offline-database). Дополнительные метаданные могут поступать из онлайн-источников. Информация о сериях и озвучках зависит от доступных источников; сайт пока не размещает видеопотоки.</div></footer>
+<footer><div class="wrap foot"><div class="brand"><span class="mark">A</span><span>ANI<span>MORA</span></span></div><div>ANIMORA · Каталог аниме</div><div>Чёрный × Фиолетовый</div></div><div class="wrap notice">Каталог формируется из онлайн-источников метаданных. Информация о названиях, жанрах, оценках и сериях зависит от доступности внешних API. ANIMORA пока не размещает видеопотоки.</div></footer>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="related" id="relatedBlock" hidden><h3>Связанные аниме</h3><div id="relatedList" class="related-list"></div></div><div class="episodes" id="airingInfo" hidden><h3>Следующая серия</h3><div class="episode-row"><span id="airingEpisode">Эпизод</span><span id="airingDate">Дата уточняется</span></div><div class="notice" id="airingCountdown" style="margin-top:10px"></div></div><div class="episodes"><h3>Мой прогресс</h3><div class="episode-row"><span id="progressLabel">Просмотрено 0 серий</span><span id="progressTotal">Всего: неизвестно</span></div><div class="progress-track" style="height:7px;background:#302440;border-radius:99px;overflow:hidden;margin:10px 0 14px"><div id="progressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#c084fc);transition:width .2s"></div></div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="episodeMinus" type="button">− 1 серия</button><button class="btn primary" id="episodePlus" type="button">+ 1 серия</button><button class="btn" id="episodeReset" type="button">Сбросить</button></div><div class="notice" style="margin-top:12px">Прогресс сохраняется на этом устройстве. Просмотр серий пока не встроен; позже подключим легальные источники видео.</div></div></div></div>
 <script>
 const API_URL = "https://graphql.anilist.co";
@@ -428,7 +428,8 @@ async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
  const primaryErrors=[];
- // Онлайн-first: не блокируем загрузку большим локальным JSON-каталогом.
+ const sourceErrors=[];
+ // Онлайн-каталог: все результаты получаем из внешних API.
  loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
@@ -452,7 +453,7 @@ async function loadCatalog({reset=true}={}){
    // Merge unique anime from Kitsu and Jikan into the current page.
    const extraSources=[{name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},{name:"Jikan",run:()=>fetchJikanCatalog(q,page)}];
    const extraResults=await Promise.allSettled(extraSources.map(source=>source.run()));
-   const merged=[...(result.media||[])];const sourceErrors=[];extraResults.forEach((settled,i)=>{if(settled.status==="rejected")sourceErrors.push(extraSources[i].name+": "+(settled.reason?.message||"ошибка запроса"));});
+   const merged=[...(result.media||[])];extraResults.forEach((settled,i)=>{if(settled.status==="rejected")sourceErrors.push(extraSources[i].name+": "+(settled.reason?.message||"ошибка запроса"));});
    const normalizeKey=a=>String(a.title?.english||a.title?.romaji||a.title?.native||"").toLowerCase().replace(/[^a-zа-яё0-9]/gi,"");
    const known=new Set(merged.map(normalizeKey).filter(Boolean));
    for(const settled of extraResults){
