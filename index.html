@@ -410,19 +410,39 @@ async function supplementLocalCatalog(query){
  if(onlineSupplementDone.has(key))return;
  if(onlineSupplementJobs.has(key))return onlineSupplementJobs.get(key);
  const job=(async()=>{
+  const maxPages=key?1:3;
+  async function collect(fetchPage){
+   const items=[];
+   for(let pageNumber=1;pageNumber<=maxPages;pageNumber++){
+    try{
+     const result=await fetchPage(pageNumber);
+     const rows=Array.isArray(result?.media)?result.media:[];
+     if(!rows.length)break;
+     items.push(...rows);
+     if(!result.pageInfo?.hasNextPage)break;
+    }catch(error){
+     if(pageNumber===1)throw error;
+     console.warn("Дополнительная страница каталога пропущена:",error);
+     break;
+    }
+   }
+   return items;
+  }
+  const tasks=[
+   collect(pageNumber=>fetchCompatibleCatalog("https://api.tenrai.org/v1",key,pageNumber,"Tenrai")),
+   collect(pageNumber=>fetchKitsuCatalog(key,pageNumber)),
+   collect(pageNumber=>fetchJikanCatalog(key,pageNumber))
+  ];
+  const results=await Promise.allSettled(tasks);
   let remote=[];
-  try{
-   const main=await fetchCompatibleCatalog("https://api.tenrai.org/v1",key,1,"Tenrai");
-   remote.push(...(main.media||[]));
-  }catch(_){
+  results.forEach(result=>{if(result.status==="fulfilled")remote.push(...result.value);});
+  if(!remote.length){
    try{
     const variables={page:1,perPage:PAGE_SIZE,search:key||null,genres:null,tags:null};
     const data=await apiRequest(LIST_QUERY,variables);
     remote.push(...(data.Page?.media||[]));
-   }catch(_){}
+   }catch(error){console.warn("AniList не смог дополнить каталог:",error);}
   }
-  const backups=await Promise.allSettled([fetchKitsuCatalog(key,1),fetchJikanCatalog(key,1)]);
-  backups.forEach(r=>{if(r.status==="fulfilled")remote.push(...(r.value.media||[]));});
   if(!remote.length)return;
   localCatalog=mergeCatalogRecords(remote,localCatalog||[]);
   onlineSupplementDone.add(key);
@@ -433,7 +453,7 @@ async function supplementLocalCatalog(query){
   anime=filtered.slice(start,start+PAGE_SIZE);
   hasNextPage=start+PAGE_SIZE<filtered.length;
   render();
-  if(!loading)setStatus("Каталог ANIMORA обновлён · "+filtered.length.toLocaleString("ru-RU")+" результатов · онлайн-источники объединены с локальной базой");
+  if(!loading)setStatus("Каталог ANIMORA обновлён · "+filtered.length.toLocaleString("ru-RU")+" результатов · локальная база дополнена онлайн-источниками");
  })().catch(error=>console.warn("Онлайн-дополнение каталога не удалось:",error)).finally(()=>onlineSupplementJobs.delete(key));
  onlineSupplementJobs.set(key,job);
  return job;
