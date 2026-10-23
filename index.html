@@ -20,6 +20,23 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
 .modal{position:fixed;inset:0;background:#030207d9;backdrop-filter:blur(8px);z-index:30;display:none;align-items:center;justify-content:center;padding:18px}.modal.open{display:flex}.dialog{width:min(700px,100%);background:#120e1b;border:1px solid #553078;border-radius:22px;overflow:hidden;box-shadow:0 24px 100px #0009}.dialog-top{display:grid;grid-template-columns:180px 1fr;gap:22px;padding:22px}.dialog-poster{min-height:230px;border-radius:14px;background:linear-gradient(145deg,#8b5cf6,#160b26);display:grid;place-items:center;font-size:62px;color:#ffffff55}.dialog h2{margin:3px 0 10px;font-size:27px}.dialog p{color:#c8bfd8;line-height:1.6}.close{float:right;border:0;background:#2a2037;color:white;border-radius:9px;padding:7px 11px}.episodes{padding:0 22px 22px}.episodes h3{margin:0 0 10px}.episode-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #302440;border-radius:10px;margin-top:8px;color:#c8bfd8}.episode-row button{border:0;border-radius:8px;background:#6d28d9;color:white;padding:8px 11px}.notice{color:#a99dbb;font-size:12px;line-height:1.5;margin-top:12px}
 @media(max-width:900px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.navlinks{display:none}.hero-card{min-height:300px}}
 @media(max-width:560px){.wrap{padding:0 14px}.nav{height:62px;gap:12px}.brand{font-size:20px}.search input{width:42vw;padding:10px 8px 10px 32px}.hero{padding-top:22px}.hero-card{min-height:330px;padding:24px 20px}.hero-card:after{right:-3%;top:10%;font-size:130px}.hero h1{font-size:39px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.poster-title{font-size:18px}.card-info{padding:10px}.section-head h2{font-size:21px}.dialog-top{grid-template-columns:100px 1fr;gap:13px;padding:14px}.dialog-poster{min-height:160px;font-size:38px}.dialog h2{font-size:21px}.episodes{padding:0 14px 14px}}
+
+/* Исправления мобильной карточки и русскоязычного интерфейса */
+.dialog{max-height:calc(100dvh - 36px);display:flex;flex-direction:column;overflow:hidden}
+.dialog-top{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.dialog-top>div:last-child{min-width:0}
+.dialog p{white-space:pre-line;overflow-wrap:anywhere}
+.episodes{flex-shrink:0;max-height:34dvh;overflow-y:auto;overscroll-behavior:contain}
+.dialog-poster img{display:block;max-width:100%}
+@media(max-width:560px){
+ .dialog{max-height:calc(100dvh - 24px);width:100%}
+ .dialog-top{grid-template-columns:88px minmax(0,1fr);gap:12px;padding:12px}
+ .dialog-poster{min-height:130px!important;height:150px;overflow:hidden}
+ .dialog h2{font-size:19px;overflow-wrap:anywhere}
+ .dialog p{font-size:14px;line-height:1.5}
+ .episodes{max-height:28dvh;padding:0 12px 12px}
+ .filters{max-width:100%;overscroll-behavior-x:contain}
+}
 </style>
 </head>
 <body>
@@ -57,18 +74,19 @@ function persist(){localStorage.setItem("animora-favorites", JSON.stringify([...
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function plainText(s=""){const t=document.createElement("div");t.innerHTML=s;return (t.textContent||t.innerText||"").trim();}
 function titleOf(a){return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";}
+function russianTitle(a){return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";}
 function yearOf(a){return a.seasonYear || (a.startDate?.year) || "Год неизвестен";}
 function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "—";}
 function descriptionOf(a){return plainText(a.description || "Описание пока отсутствует.");}
 function renderFilters(){filters.innerHTML=GENRES.map(g=>'<button class="chip '+(genre===g?"active":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>').join("");}
 function filteredAnime(){
  const q=search.value.trim().toLowerCase();
- return anime.filter(a=>(genre==="Все"||(a.genres||[]).includes(genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[titleOf(a),a.title?.romaji,a.title?.english,a.title?.native,(a.genres||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
+ return anime.filter(a=>(genre==="Все"||(a.genres||[]).includes(GENRE_MAP[genre]||genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[titleOf(a),a.title?.romaji,a.title?.english,a.title?.native,(a.genres||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
 }
 function render(){
  const list=filteredAnime();
  document.querySelector("#sectionTitle").textContent=view==="favorites"?"Избранное":search.value.trim()?"Результаты поиска":genre==="Все"?"Популярное":genre;
- document.querySelector("#sectionSubtitle").textContent=view==="favorites"?"Тайтлы, сохранённые на этом устройстве":list.length+" аниме в загруженных результатах";
+ document.querySelector("#sectionSubtitle").textContent=view==="favorites"?"Аниме, сохранённые на этом устройстве":list.length+" аниме в загруженных результатах";
  grid.innerHTML=list.length?list.map(a=>{
   const title=titleOf(a), poster=a.coverImage?.large||a.coverImage?.medium||"";
   return '<article class="anime-card" data-id="'+a.id+'" tabindex="0" aria-label="Открыть '+esc(title)+'"><div class="poster"><div class="poster-fallback">✦</div>'+(poster?'<img loading="lazy" src="'+esc(poster)+'" alt="Постер '+esc(title)+'" onerror="this.style.display=\'none\'">':"")+'<span class="score">★ '+scoreOf(a)+'</span><button class="fav '+(saved.has(a.id)?"saved":"")+'" data-fav="'+a.id+'" aria-label="Добавить в избранное">'+(saved.has(a.id)?"♥":"♡")+'</button><div class="poster-title">'+esc(title)+'</div></div><div class="card-info"><h3>'+esc(title)+'</h3><div class="meta"><span>'+esc(yearOf(a))+' · '+esc(GENRE_RU[(a.genres||[])[0]]||(a.genres||[])[0]||"Аниме")+'</span><span class="tag">'+esc(a.episodes? a.episodes+" сер.":"Аниме")+'</span></div></div></article>';
@@ -95,7 +113,7 @@ const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String])
 async function loadCatalog({reset=true}={}){
  if(loading)return;
  const token=++requestToken, q=search.value.trim();
- loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог AniList…");
+ loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
   const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"?null:[GENRE_MAP[genre]||genre]};
@@ -105,26 +123,35 @@ async function loadCatalog({reset=true}={}){
   const incoming=result.media||[];
   anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
-  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице поиска");
+  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице");
   render();
  }catch(error){
   if(token!==requestToken)return;
-  setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз. ("+error.message+")");
+  setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.");
   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к AniList.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
  }finally{
   if(token===requestToken){loading=false;loadMore.disabled=false;}
  }
+}
+async function translateDescription(text){
+ if(!text||text==="Описание пока отсутствует.")return "Описание пока отсутствует.";
+ if(/[А-Яа-яЁё]/.test(text))return text;
+ try{const chunks=text.match(/[\\s\\S]{1,450}/g)||[text];const out=[];for(const chunk of chunks){const u="https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ru&dt=t&q="+encodeURIComponent(chunk);const r=await fetch(u);if(!r.ok)throw new Error("translation unavailable");const j=await r.json();out.push((j[0]||[]).map(x=>x[0]||"").join(""));}return out.join("");}catch(e){return text+"\n\n(Не удалось получить русский перевод.)";}
 }
 function openAnime(id){
  selected=anime.find(a=>a.id===id);if(!selected)return;
  const poster=selected.coverImage?.large||selected.coverImage?.medium||"";
  const modalPoster=document.querySelector("#modalPoster");
  modalPoster.innerHTML=poster?'<img src="'+esc(poster)+'" alt="Постер '+esc(titleOf(selected))+'" style="width:100%;height:100%;min-height:230px;object-fit:cover;border-radius:14px">':"✦";
- document.querySelector("#modalMeta").textContent="★ "+scoreOf(selected)+" · "+yearOf(selected)+" · "+(selected.format||"АНИМЕ")+" · "+(selected.episodes?selected.episodes+" серий":"серии неизвестны");
+ document.querySelector("#modalMeta").textContent="★ "+scoreOf(selected)+" · "+yearOf(selected)+" · "+({"TV":"Сериал","TV_SHORT":"Короткий сериал","MOVIE":"Фильм","OVA":"OVA","ONA":"ONA","SPECIAL":"Спецвыпуск","MUSIC":"Клип"}[selected.format]||"Аниме")+" · "+(selected.episodes?selected.episodes+" серий":"число серий неизвестно");
  document.querySelector("#modalTitle").textContent=titleOf(selected);
- document.querySelector("#modalDesc").textContent=descriptionOf(selected);
+ document.querySelector("#modalDesc").textContent="Переводим описание на русский…";
  const tags=(selected.genres||[]).map(g=>GENRE_RU[g]||g).join(" · ");
- document.querySelector("#modalDesc").textContent=(descriptionOf(selected))+(tags?"\n\nЖанры: "+tags:"")+(selected.status?"\n\nСтатус: "+selected.status:"");
+ const currentId=selected.id;
+ const statusRu={"FINISHED":"Завершено","RELEASING":"Выходит","NOT_YET_RELEASED":"Ещё не вышло","CANCELLED":"Отменено","HIATUS":"На паузе"}[selected.status]||"";
+ const extra=(tags?"\n\nЖанры: "+tags:"")+(statusRu?"\n\nСтатус: "+statusRu:"");
+ document.querySelector("#modalDesc").textContent=extra;
+ translateDescription(descriptionOf(selected)).then(t=>{if(selected&&selected.id===currentId&&document.querySelector("#modal").classList.contains("open"))document.querySelector("#modalDesc").textContent=t+extra;}).catch(()=>{if(selected&&selected.id===currentId)document.querySelector("#modalDesc").textContent=descriptionOf(selected)+extra+"\n\n(Перевод недоступен — показан оригинал.)";});
  document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";
  document.querySelector("#modal").classList.add("open");
 }
