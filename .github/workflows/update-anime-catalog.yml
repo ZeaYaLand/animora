@@ -111,6 +111,29 @@ jobs:
           items = db.get("items")
           assert isinstance(items, list) and len(items) >= 10000
           assert db.get("count") == len(items)
+          titles = [str(item.get("title") or "").strip().casefold() for item in items]
+          ids = [item.get("id") for item in items]
+          assert all(titles), "Catalog contains empty titles"
+          assert len(ids) == len(set(ids)), "Catalog contains duplicate record IDs"
+          assert all(isinstance(item.get("sources", []), list) for item in items), "Invalid sources field"
+          type_counts = {}
+          years = []
+          with_picture = 0
+          for item in items:
+              kind = str(item.get("type") or "UNKNOWN").upper()
+              type_counts[kind] = type_counts.get(kind, 0) + 1
+              if item.get("picture") or item.get("thumbnail"):
+                  with_picture += 1
+              year = item.get("year")
+              if isinstance(year, int) and 1900 <= year <= 2100:
+                  years.append(year)
+          duplicate_titles = len(titles) - len(set(titles))
+          print("Catalog quality report:")
+          print(f"  Unique IDs: {len(set(ids))}")
+          print(f"  Duplicate exact titles (not automatically removed): {duplicate_titles}")
+          print(f"  Records with poster: {with_picture}/{len(items)}")
+          print(f"  Records with plausible year: {len(years)}/{len(items)}")
+          print(f"  Types: {json.dumps(type_counts, ensure_ascii=False, sort_keys=True)}")
           assert all(isinstance(tag, str) for item in items for tag in item.get("tags", []))
           print(f"Validated catalog: {len(items)} records, {path.stat().st_size} bytes")
           PY
