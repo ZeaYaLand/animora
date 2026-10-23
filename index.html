@@ -249,11 +249,22 @@ async function loadRelated(id){
   }).join("");
  }catch(_){block.hidden=true;}
 }
+const starter=[
+ [900000001,"Атака титанов","Attack on Titan",["Экшен","Драма","Фэнтези"],"Человечество укрывается за огромными стенами от титанов. Жизнь меняется, когда появляется враг, способный разрушить защиту."],
+ [900000002,"Тетрадь смерти","Death Note",["Триллер","Психологическое","Сверхъестественное"],"Старшеклассник находит загадочную тетрадь, способную убивать людей, чьи имена в неё записаны."],
+ [900000003,"Магическая битва","Jujutsu Kaisen",["Экшен","Сверхъестественное","Школа"],"Парень оказывается втянут в мир проклятий и магов после опасного решения, которое меняет его жизнь."],
+ [900000004,"Ван-Пис","One Piece",["Приключения","Комедия","Фэнтези"],"Молодой пират отправляется в большое путешествие, чтобы найти легендарное сокровище и стать королём пиратов."],
+ [900000005,"Семья шпиона","Spy x Family",["Комедия","Экшен","Повседневность"],"Шпион, наёмная убийца и девочка-телепат создают необычную семью, скрывая друг от друга свои секреты."],
+ [900000006,"Провожающая в последний путь Фрирен","Frieren: Beyond Journey's End",["Приключения","Драма","Фэнтези"],"Эльфийская волшебница после победы над королём демонов начинает лучше понимать людей и ценность прожитого времени."],
+ [900000007,"Твоё имя","Your Name.",["Романтика","Драма","Сверхъестественное"],"Двое подростков загадочным образом меняются телами и пытаются понять, какая связь возникла между ними."],
+ [900000008,"Волейбол!!","Haikyuu!!",["Спорт","Комедия","Школа"],"Увлечённый волейболом школьник стремится стать сильным игроком и приводит команду к новым испытаниям."]
+];
+function makeStarterCatalog(){return starter.map(x=>({id:x[0],title:{english:x[2],romaji:x[2],native:""},russianTitle:x[1],coverImage:{large:"",medium:""},description:x[4],genres:x[3],tags:[],averageScore:null,episodes:null,seasonYear:null,startDate:{year:null},format:"TV",status:"FINISHED",airingSchedule:{nodes:[]},sourceName:"ANIMORA"}));}
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
  loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
- if(reset){page=1;hasNextPage=false;anime=[];render();}
+ if(reset){page=1;hasNextPage=false;if(!anime.length){anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");}}
  try{
   let data, result;
   if(view==="favorites"){
@@ -321,17 +332,8 @@ async function loadCatalog({reset=true}={}){
    }catch(_){}
   }
   if(!restored&&!anime.length&&view!=="favorites"){
-   const starter=[
-    [900000001,"Атака титанов","Attack on Titan",["Экшен","Драма","Фэнтези"],"Человечество укрывается за огромными стенами от титанов. Жизнь меняется, когда появляется враг, способный разрушить защиту."],
-    [900000002,"Тетрадь смерти","Death Note",["Триллер","Психологическое","Сверхъестественное"],"Старшеклассник находит загадочную тетрадь, способную убивать людей, чьи имена в неё записаны."],
-    [900000003,"Магическая битва","Jujutsu Kaisen",["Экшен","Сверхъестественное","Школа"],"Парень оказывается втянут в мир проклятий и магов после опасного решения, которое меняет его жизнь."],
-    [900000004,"Ван-Пис","One Piece",["Приключения","Комедия","Фэнтези"],"Молодой пират отправляется в большое путешествие, чтобы найти легендарное сокровище и стать королём пиратов."],
-    [900000005,"Семья шпиона","Spy x Family",["Комедия","Экшен","Повседневность"],"Шпион, наёмная убийца и девочка-телепат создают необычную семью, скрывая друг от друга свои секреты."],
-    [900000006,"Провожающая в последний путь Фрирен","Frieren: Beyond Journey's End",["Приключения","Драма","Фэнтези"],"Эльфийская волшебница после победы над королём демонов начинает лучше понимать людей и ценность прожитого времени."],
-    [900000007,"Твоё имя","Your Name.",["Романтика","Драма","Сверхъестественное"],"Двое подростков загадочным образом меняются телами и пытаются понять, какая связь возникла между ними."],
-    [900000008,"Волейбол!!","Haikyuu!!",["Спорт","Комедия","Школа"],"Увлечённый волейболом школьник стремится стать сильным игроком и приводит команду к новым испытаниям."]
-   ];
-   anime=starter.map(x=>({id:x[0],title:{english:x[2],romaji:x[2],native:""},russianTitle:x[1],coverImage:{large:"",medium:""},description:x[4],genres:x[3],tags:[],averageScore:null,episodes:null,seasonYear:null,startDate:{year:null},format:"TV",status:"FINISHED",airingSchedule:{nodes:[]},sourceName:"ANIMORA"}));
+
+   anime=makeStarterCatalog();
    hasNextPage=false;page=1;render();restored=true;
    setStatus("Внешние каталоги недоступны · показана стартовая подборка ANIMORA");
   }
@@ -391,6 +393,6 @@ function setView(v){view=v;if(v==="favorites"||anime.length===0)loadCatalog({res
 document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>{setView(b.dataset.view);if(b.dataset.view!=="favorites"&&anime.length===0)loadCatalog({reset:true});}));
 document.querySelector("#showFav").addEventListener("click",()=>setView("favorites"));
 document.querySelector("#explore").addEventListener("click",()=>{setView("all");document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});if(!anime.length)loadCatalog({reset:true});});
-renderFilters();render();loadCatalog({reset:true});
+renderFilters();if(!anime.length)anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");loadCatalog({reset:true});
 </script>
 </body></html>
