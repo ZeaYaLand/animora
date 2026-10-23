@@ -395,36 +395,67 @@ async function fetchJikanCatalog(query,pageNumber){
 const onlineSupplementJobs=new Map();
 const onlineSupplementDone=new Set();
 function mergeCatalogRecords(primary,secondary){
- const keySet=a=>[a?.russianTitle,a?.title?.english,a?.title?.romaji,a?.title?.native]
-  .filter(Boolean).map(normalizeTitle).filter(Boolean);
- const result=[],keyToIndex=new Map();
+ const result=[],titleToIndexes=new Map(),sourceToIndex=new Map();
  const union=(a,b)=>[...new Set([...(Array.isArray(a)?a:[]),...(Array.isArray(b)?b:[])].filter(Boolean))];
- const nonEmpty=(value)=>value!==undefined&&value!==null&&value!==""&&!(Array.isArray(value)&&!value.length);
+ const nonEmpty=value=>value!==undefined&&value!==null&&value!==""&&!(Array.isArray(value)&&!value.length);
+ const titleKeys=a=>[a?.russianTitle,a?.title?.english,a?.title?.romaji,a?.title?.native]
+  .filter(Boolean).map(normalizeTitle).filter(Boolean);
+ function sourceKeys(a){
+  const keys=[];
+  const add=(name,id)=>{if(name&&id!==undefined&&id!==null&&String(id).trim())keys.push(String(name).toLowerCase()+":"+String(id).trim());};
+  const src=String(a?.sourceName||"").toLowerCase();
+  if(a?.sourceId&&src)add(src,a.sourceId);
+  if(a?.id&&/anilist|kitsu|jikan|mal|tenrai/.test(src))add(src,a.id);
+  if(a?.idMal)add("mal",a.idMal);
+  if(a?.idAniList)add("anilist",a.idAniList);
+  for(const raw of Array.isArray(a?.externalSources)?a.externalSources:[]){
+   const value=String(raw||"");
+   let match=value.match(/myanimelist\.net\/anime\/(\d+)/i);if(match)add("mal",match[1]);
+   match=value.match(/anilist\.co\/anime\/(\d+)/i);if(match)add("anilist",match[1]);
+   match=value.match(/kitsu\.io\/anime\/(\d+)/i);if(match)add("kitsu",match[1]);
+  }
+  return [...new Set(keys)];
+ }
+ function compatible(a,b){
+  const yearA=Number(a?.seasonYear||a?.startDate?.year||a?.year)||null;
+  const yearB=Number(b?.seasonYear||b?.startDate?.year||b?.year)||null;
+  if(yearA&&yearB&&Math.abs(yearA-yearB)>1)return false;
+  const fa=String(a?.format||"").toUpperCase(),fb=String(b?.format||"").toUpperCase();
+  const movies=new Set(["MOVIE"]);
+  const tv=new Set(["TV","TV_SHORT","OVA","ONA","SPECIAL"]);
+  if((movies.has(fa)&&tv.has(fb))||(movies.has(fb)&&tv.has(fa)))return false;
+  return true;
+ }
  for(const item of [...(primary||[]),...(secondary||[])]){
   if(!item||typeof item!=="object")continue;
-  const keys=keySet(item);
-  const matches=[...new Set(keys.map(key=>keyToIndex.get(key)).filter(index=>index!==undefined))];
-  if(!matches.length){
-   const index=result.length;
-   result.push(item);
-   keys.forEach(key=>keyToIndex.set(key,index));
-   continue;
+  const tkeys=titleKeys(item),skeys=sourceKeys(item);
+  let index;
+  for(const key of skeys){if(sourceToIndex.has(key)){index=sourceToIndex.get(key);break;}}
+  if(index===undefined){
+   const candidates=[...new Set(tkeys.flatMap(key=>titleToIndexes.get(key)||[]))];
+   index=candidates.find(i=>compatible(result[i],item));
   }
-  const index=matches[0],existing=result[index];
-  const merged={...item,...existing};
-  merged.title={...(item.title||{}),...(existing.title||{})};
-  ["english","romaji","native"].forEach(field=>{
-   if(!nonEmpty(existing.title?.[field])&&nonEmpty(item.title?.[field]))merged.title[field]=item.title[field];
+  if(index===undefined){
+   index=result.length;result.push(item);
+  }else{
+   const existing=result[index],merged={...item,...existing};
+   merged.title={...(item.title||{}),...(existing.title||{})};
+   ["english","romaji","native"].forEach(field=>{
+    if(!nonEmpty(existing.title?.[field])&&nonEmpty(item.title?.[field]))merged.title[field]=item.title[field];
+   });
+   ["russianTitle","description","averageScore","episodes","seasonYear","sourceName","format","status","coverImage","year","idMal","idAniList","sourceId"].forEach(field=>{
+    if(!nonEmpty(existing[field])&&nonEmpty(item[field]))merged[field]=item[field];
+   });
+   merged.coverImage={...(item.coverImage||{}),...(existing.coverImage||{})};
+   ["genres","tags","studios","externalSources"].forEach(field=>{merged[field]=union(existing[field],item[field]);});
+   result[index]=merged;
+  }
+  titleKeys(result[index]).forEach(key=>{
+   const indexes=titleToIndexes.get(key)||[];
+   if(!indexes.includes(index))indexes.push(index);
+   titleToIndexes.set(key,indexes);
   });
-  ["russianTitle","description","averageScore","episodes","seasonYear","sourceName","format","status","coverImage"].forEach(field=>{
-   if(!nonEmpty(existing[field])&&nonEmpty(item[field]))merged[field]=item[field];
-  });
-  merged.coverImage={...(item.coverImage||{}),...(existing.coverImage||{})};
-  ["genres","tags","studios","externalSources"].forEach(field=>{
-   merged[field]=union(existing[field],item[field]);
-  });
-  result[index]=merged;
-  keySet(merged).forEach(key=>keyToIndex.set(key,index));
+  sourceKeys(result[index]).concat(skeys).forEach(key=>sourceToIndex.set(key,index));
  }
  return result;
 }
