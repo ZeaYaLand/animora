@@ -174,6 +174,12 @@ async function enrichRussianTitles(items){
 function yearOf(a){return a.seasonYear || (a.startDate?.year) || "Год неизвестен";}
 function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "—";}
 function descriptionOf(a){return plainText(a.description || "Описание пока отсутствует.");}
+function stableLocalAnimeId(x){
+ const key=[x.title||"",x.year||"",x.type||"",x.picture||""].join("|").toLowerCase();
+ let hash=2166136261;
+ for(let i=0;i<key.length;i++)hash=Math.imul(hash^key.charCodeAt(i),16777619);
+ return 1500000000+((hash>>>0)%500000000);
+}
 async function loadLocalCatalog(){
  if(localCatalog)return localCatalog;
  if(localCatalogPromise)return localCatalogPromise;
@@ -194,15 +200,23 @@ async function loadLocalCatalog(){
    db=await response.json();
   }
   if(!Array.isArray(db.items)||db.items.length<10000)throw new Error("Локальная база неполная");
+  let migratedLocalState=false;
   localCatalog=db.items.map((x,i)=>{
+   const legacyId=700000000+i, stableId=stableLocalAnimeId(x);
+   if(saved.delete(legacyId)){saved.add(stableId);migratedLocalState=true;}
+   if(Object.prototype.hasOwnProperty.call(watchProgress,String(legacyId))){
+    if(!Object.prototype.hasOwnProperty.call(watchProgress,String(stableId)))watchProgress[String(stableId)]=watchProgress[String(legacyId)];
+    delete watchProgress[String(legacyId)];migratedLocalState=true;
+   }
    const tags=(x.tags||[]).map(name=>({name,rank:100,isMediaSpoiler:false}));
    const title=String(x.title||"");
    const russian=(x.synonyms||[]).find(t=>/[А-Яа-яЁё]/.test(t))||"";
    const year=Number(x.year)||null;
    const format=({TV:"TV",MOVIE:"MOVIE",OVA:"OVA",ONA:"ONA",SPECIAL:"SPECIAL"})[x.type]||"TV";
    const status=({FINISHED:"FINISHED",ONGOING:"RELEASING",UPCOMING:"NOT_YET_RELEASED"})[x.status]||"FINISHED";
-   return {id:700000000+i,title:{english:title,romaji:title,native:""},russianTitle:russian,coverImage:{large:x.picture||"",medium:x.picture||""},description:"Описание пока отсутствует. Сведения собраны из открытой базы аниме.",genres:(x.tags||[]).map(t=>String(t).trim()).map(t=>{const key=t.toLowerCase();return ({"action":"Action","adventure":"Adventure","comedy":"Comedy","drama":"Drama","fantasy":"Fantasy","horror":"Horror","mecha":"Mecha","music":"Music","mystery":"Mystery","psychological":"Psychological","romance":"Romance","sci-fi":"Sci-Fi","slice of life":"Slice of Life","sports":"Sports","supernatural":"Supernatural","thriller":"Thriller","isekai":"Isekai","school":"School","samurai":"Samurai","magic":"Magic","vampire":"Vampire","military":"Military","historical":"Historical","kids":"Kids","work":"Work","gourmet":"Gourmet","martial arts":"Martial Arts","shounen":"Shounen","shoujo":"Shoujo","seinen":"Seinen","josei":"Josei","harem":"Harem","ecchi":"Ecchi","parody":"Parody","space":"Space","super power":"Super Power","reincarnation":"Reincarnation","demons":"Demons"})[key]||null;}).filter(Boolean),tags,averageScore:x.score?Math.round(x.score*10):null,episodes:x.episodes||null,seasonYear:year,startDate:{year},format,status,airingSchedule:{nodes:[]},sourceName:"Локальная база",externalSources:x.sources||[],studios:x.studios||[]};
+   return {id:stableId,title:{english:title,romaji:title,native:""},russianTitle:russian,coverImage:{large:x.picture||"",medium:x.picture||""},description:"Описание пока отсутствует. Сведения собраны из открытой базы аниме.",genres:(x.tags||[]).map(t=>String(t).trim()).map(t=>{const key=t.toLowerCase();return ({"action":"Action","adventure":"Adventure","comedy":"Comedy","drama":"Drama","fantasy":"Fantasy","horror":"Horror","mecha":"Mecha","music":"Music","mystery":"Mystery","psychological":"Psychological","romance":"Romance","sci-fi":"Sci-Fi","slice of life":"Slice of Life","sports":"Sports","supernatural":"Supernatural","thriller":"Thriller","isekai":"Isekai","school":"School","samurai":"Samurai","magic":"Magic","vampire":"Vampire","military":"Military","historical":"Historical","kids":"Kids","work":"Work","gourmet":"Gourmet","martial arts":"Martial Arts","shounen":"Shounen","shoujo":"Shoujo","seinen":"Seinen","josei":"Josei","harem":"Harem","ecchi":"Ecchi","parody":"Parody","space":"Space","super power":"Super Power","reincarnation":"Reincarnation","demons":"Demons"})[key]||null;}).filter(Boolean),tags,averageScore:x.score?Math.round(x.score*10):null,episodes:x.episodes||null,seasonYear:year,startDate:{year},format,status,airingSchedule:{nodes:[]},sourceName:"Локальная база",externalSources:x.sources||[],studios:x.studios||[]};
   });
+  if(migratedLocalState){try{localStorage.setItem("animora-favorites",JSON.stringify([...saved]));}catch(_){};saveWatchProgress();}
   return localCatalog;
  })();
  try{return await localCatalogPromise;}finally{localCatalogPromise=null;}
