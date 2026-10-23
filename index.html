@@ -75,6 +75,7 @@ function genresFor(a){const source=a.shikimoriGenres?.length?a.shikimoriGenres:(
 
 let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, pendingLoad = null, searchTimer = null, requestToken = 0;
 let anime = [];
+let localCatalog = null, localCatalogPromise = null;
 const relatedAnimeCache = new Map();
 const WATCH_PROGRESS_KEY = "animora-watch-progress-v1";
 let watchProgress = {};
@@ -172,6 +173,31 @@ async function enrichRussianTitles(items){
 function yearOf(a){return a.seasonYear || (a.startDate?.year) || "Год неизвестен";}
 function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "—";}
 function descriptionOf(a){return plainText(a.description || "Описание пока отсутствует.");}
+async function loadLocalCatalog(){
+ if(localCatalog)return localCatalog;
+ if(localCatalogPromise)return localCatalogPromise;
+ localCatalogPromise=(async()=>{
+  const response=await fetch("./data/catalog.json",{cache:"no-cache"});
+  if(!response.ok)throw new Error("Локальная база пока не опубликована (HTTP "+response.status+")");
+  const db=await response.json();
+  if(!Array.isArray(db.items)||db.items.length<10000)throw new Error("Локальная база неполная");
+  localCatalog=db.items.map((x,i)=>{
+   const tags=(x.tags||[]).map(name=>({name,rank:100,isMediaSpoiler:false}));
+   const title=String(x.title||"");
+   const russian=(x.synonyms||[]).find(t=>/[А-Яа-яЁё]/.test(t))||"";
+   const year=Number(x.year)||null;
+   const format=({TV:"TV",MOVIE:"MOVIE",OVA:"OVA",ONA:"ONA",SPECIAL:"SPECIAL"})[x.type]||"TV";
+   const status=({FINISHED:"FINISHED",ONGOING:"RELEASING",UPCOMING:"NOT_YET_RELEASED"})[x.status]||"FINISHED";
+   return {id:700000000+i,title:{english:title,romaji:title,native:""},russianTitle:russian,coverImage:{large:x.picture||"",medium:x.picture||""},description:"Описание пока отсутствует. Сведения собраны из открытой базы аниме.",genres:(x.tags||[]).filter(t=>["action","adventure","comedy","drama","fantasy","horror","mecha","music","mystery","psychological","romance","sci-fi","slice of life","sports","supernatural","thriller","isekai","school","samurai","magic","vampire","military","historical","kids","work","gourmet","martial arts","shounen","shoujo","seinen","josei","harem","ecchi","parody","space","super power","reincarnation","demons"].includes(t)).map(t=>t.split(" ").map(w=>w? w[0].toUpperCase()+w.slice(1):w).join(" ")),tags,averageScore:x.score?Math.round(x.score*10):null,episodes:x.episodes||null,seasonYear:year,startDate:{year},format,status,airingSchedule:{nodes:[]},sourceName:"Локальная база",externalSources:x.sources||[],studios:x.studios||[]};
+  });
+  return localCatalog;
+ })();
+ try{return await localCatalogPromise;}finally{localCatalogPromise=null;}
+}
+function filterLocalCatalog(items){
+ const q=search.value.trim().toLowerCase();
+ return items.filter(a=>(genre==="Все"||genresFor(a).includes(genre)||(a.genres||[]).includes(GENRE_MAP[genre]||genre)||(a.tags||[]).some(t=>(GENRE_TAG_MAP[genre]||"")===t.name))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" "), (a.tags||[]).map(t=>t.name).join(" "), (a.externalSources||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
+}
 function renderFilters(){filters.innerHTML=GENRES.map(g=>'<button class="chip '+(genre===g?"active":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>').join("");}
 function filteredAnime(){
  const q=search.value.trim().toLowerCase();
@@ -333,6 +359,24 @@ async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
  const primaryErrors=[];
+ if(view!=="favorites" || saved.size){
+  try{
+   setStatus("Загружаем собственный каталог ANIMORA…");
+   const all=await loadLocalCatalog();
+   if(token!==requestToken)return;
+   const filtered=filterLocalCatalog(all);
+   const start=reset?0:(page-1)*PAGE_SIZE;
+   if(reset)page=1;
+   const batch=filtered.slice(start,start+PAGE_SIZE);
+   anime=reset?batch:anime.concat(batch);
+   hasNextPage=start+PAGE_SIZE<filtered.length;
+   page=Math.floor(start/PAGE_SIZE)+2;
+   batch.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
+   setStatus("Собственная база ANIMORA · "+filtered.length.toLocaleString("ru-RU")+" результатов · обновление базы еженедельно");
+   render();
+   return;
+  }catch(localError){console.warn("Local catalog unavailable; using online fallback:",localError);}
+ }
  loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;if(view==="favorites"||q||genre!=="Все"){anime=[];render();}else if(!anime.length){anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");}}
  try{
