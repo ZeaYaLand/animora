@@ -105,6 +105,8 @@ function renderWatchProgress(){
  document.querySelector("#episodePlus").disabled=total>0&&watched>=total;
 }
 let saved = new Set(); try { const raw=JSON.parse(localStorage.getItem("animora-favorites") || "[]"); saved=new Set((Array.isArray(raw)?raw:[]).map(Number).filter(Number.isFinite)); } catch (_) { saved=new Set(); }
+let favoriteRecords={};try{const raw=JSON.parse(localStorage.getItem("animora-favorite-records")||"{}");if(raw&&typeof raw==="object"&&!Array.isArray(raw))favoriteRecords=raw;}catch(_){}
+function saveFavoriteRecord(a,isSaved){const key=String(a.id);if(isSaved)favoriteRecords[key]=a;else delete favoriteRecords[key];try{localStorage.setItem("animora-favorite-records",JSON.stringify(favoriteRecords));}catch(_){setStatus("Не удалось сохранить карточки избранного в памяти браузера.");}}
 const grid = document.querySelector("#grid"), filters = document.querySelector("#filters"), search = document.querySelector("#search");
 const statusEl = document.querySelector("#status"), loadMore = document.querySelector("#loadMore");
 grid.addEventListener("click",e=>{if(e.target?.id==="retry")loadCatalog({reset:true});});
@@ -460,14 +462,17 @@ async function loadCatalog({reset=true}={}){
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
   if(view==="favorites"){
-   const ids=[...saved];
-   if(!ids.length){anime=[];hasNextPage=false;setStatus("В избранном пока пусто.");render();return;}
-   const data=await apiRequest(FAVORITES_QUERY,{ids});
-   const media=(data?.Page?.media||[]).map(item=>({...item,sourceName:"AniList"}));
+   const snapshots=Object.values(favoriteRecords).filter(a=>a&&Number.isFinite(Number(a.id)));
+   const snapshotIds=new Set(snapshots.map(a=>Number(a.id)));
+   const legacyAniListIds=[...saved].filter(id=>!snapshotIds.has(id)&&id>0&&id<100000000);
+   let legacyMedia=[];
+   if(legacyAniListIds.length){try{const data=await apiRequest(FAVORITES_QUERY,{ids:legacyAniListIds});legacyMedia=(data?.Page?.media||[]).map(item=>({...item,sourceName:"AniList"}));}catch(e){sourceErrors.push("Старые избранные AniList: "+(e?.message||"ошибка"));}}
    if(token!==requestToken)return;
-   anime=reset?media:anime.concat(media.filter(a=>!anime.some(old=>old.id===a.id)));
+   const media=mergeCatalogRecords(snapshots,legacyMedia);
+   anime=reset?media:mergeCatalogRecords(anime,media);
    hasNextPage=false;page=2;
-   setStatus("Избранное загружено · "+anime.length+" аниме");render();return;
+   setStatus(anime.length?"Избранное загружено · "+anime.length+" аниме"+(sourceErrors.length?" · "+sourceErrors.join(" | "):""):"В избранном пока пусто.");
+   render();return;
   }
   const requestedPage=page;
   const sources=[
@@ -553,13 +558,13 @@ filters.addEventListener("click",e=>{const b=e.target.closest("[data-genre]");if
 grid.addEventListener("click",e=>{
  if(e.target.closest("#retry")){loadCatalog({reset:true});return;}
  const f=e.target.closest("[data-fav]");
- if(f){e.stopPropagation();const id=Number(f.dataset.fav);saved.has(id)?saved.delete(id):saved.add(id);persist();render();if(selected?.id===id)document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";return;}
+ if(f){e.stopPropagation();const id=Number(f.dataset.fav),item=anime.find(a=>Number(a.id)===id);if(saved.has(id)){saved.delete(id);if(item)saveFavoriteRecord(item,false);}else{saved.add(id);if(item)saveFavoriteRecord(item,true);}persist();render();if(selected?.id===id)document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";return;}
  const card=e.target.closest("[data-id]");if(card)openAnime(Number(card.dataset.id));
 });
 grid.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-id]"))openAnime(Number(e.target.dataset.id));});
 search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadCatalog({reset:true}),650);});
 loadMore.addEventListener("click",()=>loadCatalog({reset:false}));
-document.querySelector("#modalFav").addEventListener("click",()=>{if(!selected)return;saved.has(selected.id)?saved.delete(selected.id):saved.add(selected.id);persist();document.querySelector("#modalFav").textContent=saved.has(selected.id)?"♥ В избранном":"♡ В избранное";if(view==="favorites")loadCatalog({reset:true});else render();});
+document.querySelector("#modalFav").addEventListener("click",()=>{if(!selected)return;const id=Number(selected.id);if(saved.has(id)){saved.delete(id);saveFavoriteRecord(selected,false);}else{saved.add(id);saveFavoriteRecord(selected,true);}persist();document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";if(view==="favorites")loadCatalog({reset:true});else render();});
 document.querySelector("#closeModal").addEventListener("click",()=>document.querySelector("#modal").classList.remove("open"));
 document.querySelector("#modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelector("#modal").classList.remove("open");});
