@@ -1,0 +1,82 @@
+name: Update ANIMORA local anime catalog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: animora-catalog-update
+  cancel-in-progress: false
+
+jobs:
+  build-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ANIMORA
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Download and build local catalog
+        run: |
+          python - <<'PY'
+          import json, urllib.request, pathlib
+          url = "https://github.com/cedya77/anime-offline-database/releases/download/latest/anime-offline-database.jsonl"
+          request = urllib.request.Request(url, headers={"User-Agent": "ANIMORA-catalog-builder"})
+          with urllib.request.urlopen(request, timeout=120) as response:
+              raw = response.read().decode("utf-8")
+          entries = []
+          for line in raw.splitlines():
+              line = line.strip()
+              if not line:
+                  continue
+              try:
+                  item = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if not isinstance(item, dict) or not item.get("title") or not isinstance(item.get("sources"), list):
+                  continue
+              season = item.get("animeSeason") or {}
+              score = item.get("score") or {}
+              entries.append({
+                  "id": len(entries) + 1,
+                  "title": item.get("title", ""),
+                  "type": item.get("type", "UNKNOWN"),
+                  "episodes": item.get("episodes"),
+                  "year": season.get("year"),
+                  "status": item.get("status", "UNKNOWN"),
+                  "picture": item.get("picture") or item.get("thumbnail") or "",
+                  "score": score.get("arithmeticGeometricMean"),
+                  "synonyms": item.get("synonyms", []),
+                  "tags": item.get("tags", []),
+                  "studios": item.get("studios", []),
+                  "sources": item.get("sources", [])
+              })
+          if len(entries) < 10000:
+              raise SystemExit(f"Catalog looks incomplete: only {len(entries)} entries")
+          output = pathlib.Path("data/catalog.json")
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps({
+              "updatedAt": __import__("datetime").date.today().isoformat(),
+              "count": len(entries),
+              "license": "ODbL-1.0 + DbCL-1.0",
+              "attribution": "anime-offline-database (cedya77 continuation)",
+              "source": "https://github.com/cedya77/anime-offline-database",
+              "items": entries
+          }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+          print(f"Built {len(entries)} anime entries ({output.stat().st_size} bytes)")
+          PY
+      - name: Commit updated dataset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/catalog.json
+          if git diff --cached --quiet; then
+            echo "Catalog unchanged"
+          else
+            git commit -m "Update local anime catalog"
+            git push
+          fi
