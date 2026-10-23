@@ -231,7 +231,7 @@ function onlineHttpError(response,sourceName){
  const status=response.status;
  const retryAfter=response.headers?.get("Retry-After");
  if(status===429)return new Error(sourceName+" ограничил частоту запросов (HTTP 429)"+(retryAfter?"; повторите через "+retryAfter+" сек.":"; подождите немного и повторите попытку"));
- if(status===403)return new Error(sourceName+" временно запретил запрос (HTTP 403)");
+ if(status===403)return new Error(sourceName+" вернул HTTP 403: источник может временно ограничивать доступ или блокировать запросы; это не обязательно проблема Wi-Fi");
  if(status===503||status===502||status===504)return new Error(sourceName+" временно недоступен (HTTP "+status+")");
  return new Error(sourceName+" ответил с кодом "+status);
 }
@@ -256,8 +256,7 @@ const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],
   media(type:ANIME,sort:POPULARITY_DESC,search:$search,genre_in:$genres,tag_in:$tags,minimumTagRank:20) {
    id title { romaji english native } coverImage { large medium } description(asHtml:false)
    genres tags { name rank isMediaSpoiler } averageScore episodes seasonYear startDate { year } format status
-   airingSchedule(notYet:1) { nodes { airingAt episode timeUntilAiring } }
-  }
+   }
  }
 }`;
 const FAVORITES_QUERY=`query ($ids:[Int]) {
@@ -549,7 +548,7 @@ grid.addEventListener("click",e=>{
  const card=e.target.closest("[data-id]");if(card)openAnime(Number(card.dataset.id));
 });
 grid.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-id]"))openAnime(Number(e.target.dataset.id));});
-search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadCatalog({reset:true}),350);});
+search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadCatalog({reset:true}),650);});
 loadMore.addEventListener("click",()=>loadCatalog({reset:false}));
 document.querySelector("#modalFav").addEventListener("click",()=>{if(!selected)return;saved.has(selected.id)?saved.delete(selected.id):saved.add(selected.id);persist();document.querySelector("#modalFav").textContent=saved.has(selected.id)?"♥ В избранном":"♡ В избранное";if(view==="favorites")loadCatalog({reset:true});else render();});
 document.querySelector("#closeModal").addEventListener("click",()=>document.querySelector("#modal").classList.remove("open"));
