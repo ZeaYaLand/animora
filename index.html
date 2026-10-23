@@ -332,6 +332,7 @@ async function fetchJikanCatalog(query,pageNumber){
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
+ const primaryErrors=[];
  loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;if(view==="favorites"||q||genre!=="Все"){anime=[];render();}else if(!anime.length){anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");}}
  try{
@@ -346,10 +347,11 @@ async function loadCatalog({reset=true}={}){
     setStatus("Подключаем основной каталог Tenrai…");
     result=await fetchCompatibleCatalog("https://api.tenrai.org/v1",q,page,"Tenrai");
    }catch(tenraiError){
+    primaryErrors.push("Tenrai: "+(tenraiError?.message||"ошибка запроса"));
     setStatus("Tenrai недоступен · подключаем AniList…");
     const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const tagOnly=new Set(["Романтическая комедия","Демоны","CGDCT"]);const useTag=!!tagName&&(!isAniListGenre||tagOnly.has(genre));const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||useTag||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||!useTag?null:[tagName]};
-    data=await apiRequest(LIST_QUERY,variables);
-    result=data.Page;
+    try{data=await apiRequest(LIST_QUERY,variables);result=data.Page;}
+    catch(anilistError){primaryErrors.push("AniList: "+(anilistError?.message||"ошибка запроса"));throw anilistError;}
    }
    // Merge unique anime from Kitsu and Jikan into the current page.
    const extraSources=[{name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},{name:"Jikan",run:()=>fetchJikanCatalog(q,page)}];
@@ -380,7 +382,7 @@ async function loadCatalog({reset=true}={}){
   if(token!==requestToken)return;
   let restored=false;
   if(view!=="favorites"){
-   const failures=[];
+   const failures=[...primaryErrors];
    const sources=[
     {name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},
     {name:"Jikan",run:()=>fetchJikanCatalog(q,page)}
