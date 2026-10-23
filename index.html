@@ -332,9 +332,14 @@ async function loadCatalog({reset=true}={}){
     const backupController=new AbortController();
     const backupTimeout=setTimeout(()=>backupController.abort(),8000);
     let backupResponse;
-    try{backupResponse=await fetch(endpoint,{headers:{"Accept":"application/json"},signal:backupController.signal});}
-    finally{clearTimeout(backupTimeout);}
-    if(!backupResponse.ok)throw new Error("Резервный каталог ответил с кодом "+backupResponse.status);
+    try{
+     backupResponse=await fetch(endpoint,{headers:{"Accept":"application/json"},signal:backupController.signal});
+    }catch(backupFetchError){
+     if(backupFetchError?.name==="AbortError")throw new Error("резервный каталог не ответил за 8 секунд");
+     if(backupFetchError instanceof TypeError)throw new Error("браузер не смог подключиться к резервному каталогу (проверь интернет или ограничения сети)");
+     throw new Error(backupFetchError?.message||"ошибка сетевого запроса");
+    }finally{clearTimeout(backupTimeout);}
+    if(!backupResponse.ok)throw new Error("Резервный каталог ответил с кодом HTTP "+backupResponse.status);
     const backup=await backupResponse.json();
     const incoming=(backup.data||[]).map(mapJikanAnime);
     if(token!==requestToken)return;
