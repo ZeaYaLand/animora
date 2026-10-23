@@ -397,11 +397,34 @@ const onlineSupplementDone=new Set();
 function mergeCatalogRecords(primary,secondary){
  const keySet=a=>[a?.russianTitle,a?.title?.english,a?.title?.romaji,a?.title?.native]
   .filter(Boolean).map(normalizeTitle).filter(Boolean);
- const result=[],seen=new Set();
+ const result=[],keyToIndex=new Map();
+ const union=(a,b)=>[...new Set([...(Array.isArray(a)?a:[]),...(Array.isArray(b)?b:[])].filter(Boolean))];
+ const nonEmpty=(value)=>value!==undefined&&value!==null&&value!==""&&!(Array.isArray(value)&&!value.length);
  for(const item of [...(primary||[]),...(secondary||[])]){
+  if(!item||typeof item!=="object")continue;
   const keys=keySet(item);
-  if(keys.some(k=>seen.has(k)))continue;
-  keys.forEach(k=>seen.add(k));result.push(item);
+  const matches=[...new Set(keys.map(key=>keyToIndex.get(key)).filter(index=>index!==undefined))];
+  if(!matches.length){
+   const index=result.length;
+   result.push(item);
+   keys.forEach(key=>keyToIndex.set(key,index));
+   continue;
+  }
+  const index=matches[0],existing=result[index];
+  const merged={...item,...existing};
+  merged.title={...(item.title||{}),...(existing.title||{})};
+  ["english","romaji","native"].forEach(field=>{
+   if(!nonEmpty(existing.title?.[field])&&nonEmpty(item.title?.[field]))merged.title[field]=item.title[field];
+  });
+  ["russianTitle","description","averageScore","episodes","seasonYear","sourceName","format","status","coverImage"].forEach(field=>{
+   if(!nonEmpty(existing[field])&&nonEmpty(item[field]))merged[field]=item[field];
+  });
+  merged.coverImage={...(item.coverImage||{}),...(existing.coverImage||{})};
+  ["genres","tags","studios","externalSources"].forEach(field=>{
+   merged[field]=union(existing[field],item[field]);
+  });
+  result[index]=merged;
+  keySet(merged).forEach(key=>keyToIndex.set(key,index));
  }
  return result;
 }
