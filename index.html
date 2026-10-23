@@ -65,6 +65,8 @@ const PAGE_SIZE = 24;
 const GENRE_MAP = {"Экшен":"Action","Приключения":"Adventure","Комедия":"Comedy","Драма":"Drama","Фэнтези":"Fantasy","Ужасы":"Horror","Меха":"Mecha","Музыка":"Music","Детектив":"Mystery","Психологическое":"Psychological","Романтика":"Romance","Научная фантастика":"Sci-Fi","Повседневность":"Slice of Life","Спорт":"Sports","Сверхъестественное":"Supernatural","Триллер":"Thriller","Тайна":"Mystery","Военное":"Military","Исторический":"Historical","Детское":"Kids","Работа":"Work","Гурман":"Gourmet","Исэкай":"Isekai","Боевые искусства":"Martial Arts","Магия":"Magic","Самураи":"Samurai","Школа":"School","Сёнэн":"Shounen","Сёдзё":"Shoujo","Сэйнэн":"Seinen","Дзёсэй":"Josei","Гарем":"Harem","Обратный гарем":"Reverse Harem","Этти":"Ecchi","Айдолы":"Idols","Музыкальный":"Music","Пародия":"Parody","Постапокалипсис":"Post-Apocalyptic","Романтическая комедия":"Romance","Космос":"Space","Вампиры":"Vampire","Демоны":"Demons","Дети":"Kids","CGDCT":"Cute Girls Doing Cute Things","Триллер":"Thriller","Сверхспособности":"Super Power","Реинкарнация":"Reincarnation"};
 const GENRES = ["Все",...Object.keys(GENRE_MAP)];
 const ANILIST_GENRES = new Set(["Action","Adventure","Comedy","Drama","Fantasy","Horror","Mecha","Music","Mystery","Psychological","Romance","Sci-Fi","Slice of Life","Sports","Supernatural","Thriller"]);
+const GENRE_TAG_MAP = {"Исэкай":"Isekai","Школа":"School","Самураи":"Samurai","Магия":"Magic","Гурман":"Gourmet","Вампиры":"Vampire","Боевые искусства":"Martial Arts","Сёнэн":"Shounen","Сёдзё":"Shoujo","Сэйнэн":"Seinen","Дзёсэй":"Josei","Гарем":"Harem","Обратный гарем":"Reverse Harem","Этти":"Ecchi","Айдолы":"Idols","Пародия":"Parody","Постапокалипсис":"Post-Apocalyptic","Космос":"Space","Сверхспособности":"Super Power","Реинкарнация":"Reincarnation","Военное":"Military","Исторический":"Historical","Работа":"Work","Романтическая комедия":"Romance","Тайна":"Mystery","Детектив":"Mystery","Дети":"Kids","Детское":"Kids","Музыкальный":"Music","Авангард":"Avant Garde","Отмеченное наградами":"Award Winning","Саспенс":"Suspense","Исполнительское искусство":"Performing Arts","Изобразительное искусство":"Visual Arts","Стратегия":"Strategy Game","Обучающее":"Educational"};
+const ANILIST_TAG_GENRES = new Set(["Action","Adventure","Comedy","Drama","Fantasy","Horror","Mecha","Music","Mystery","Psychological","Romance","Sci-Fi","Slice of Life","Sports","Supernatural","Thriller"]);
 const GENRE_RU = Object.fromEntries(Object.entries(GENRE_MAP).map(([ru,en])=>[en,ru]));
 const SHIKI_GENRE_RU = {"Action":"Экшен","Adventure":"Приключения","Comedy":"Комедия","Drama":"Драма","Fantasy":"Фэнтези","Horror":"Ужасы","Mecha":"Меха","Music":"Музыка","Mystery":"Детектив","Psychological":"Психологическое","Romance":"Романтика","Sci-Fi":"Научная фантастика","Slice of Life":"Повседневность","Sports":"Спорт","Supernatural":"Сверхъестественное","Thriller":"Триллер","Military":"Военное","Historical":"Исторический","Kids":"Детское","Work":"Работа","Gourmet":"Гурман","Isekai":"Исэкай","Martial Arts":"Боевые искусства","Magic":"Магия","Samurai":"Самураи","School":"Школа","Shounen":"Сёнэн","Shoujo":"Сёдзё","Seinen":"Сэйнэн","Josei":"Дзёсэй","Harem":"Гарем","Reverse Harem":"Обратный гарем","Ecchi":"Этти","Idols":"Айдолы","Parody":"Пародия","Post-Apocalyptic":"Постапокалипсис","Space":"Космос","Vampire":"Вампиры","Demons":"Демоны","Super Power":"Сверхспособности","Reincarnation":"Реинкарнация","Avant Garde":"Авангард","Award Winning":"Отмеченное наградами","Gourmet":"Гурман","Suspense":"Саспенс","Performing Arts":"Исполнительское искусство","Visual Arts":"Изобразительное искусство","Strategy Game":"Стратегия","Educational":"Обучающее","Hentai":"Хентай","Boys Love":"Любовь между парнями","Girls Love":"Любовь между девушками"};
 function genreRu(g){return SHIKI_GENRE_RU[g]||GENRE_RU[g]||g;}
@@ -143,7 +145,7 @@ function descriptionOf(a){return plainText(a.description || "Описание п
 function renderFilters(){filters.innerHTML=GENRES.map(g=>'<button class="chip '+(genre===g?"active":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>').join("");}
 function filteredAnime(){
  const q=search.value.trim().toLowerCase();
- return anime.filter(a=>(genre==="Все"||genresFor(a).includes(genre)||(a.genres||[]).includes(GENRE_MAP[genre]||genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
+ return anime.filter(a=>(genre==="Все"||genresFor(a).includes(genre)||(a.genres||[]).includes(GENRE_MAP[genre]||genre)||(a.tags||[]).some(t=>(GENRE_TAG_MAP[genre]||"")===t.name&&t.rank>=20))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" "), (a.tags||[]).map(t=>t.name).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
 }
 function render(){
  const list=filteredAnime();
@@ -163,12 +165,12 @@ async function apiRequest(query, variables){
  if(json.errors?.length) throw new Error(json.errors[0].message||"Ошибка GraphQL");
  return json.data;
 }
-const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String]) {
+const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],$tags:[String]) {
  Page(page:$page,perPage:$perPage) {
   pageInfo { currentPage hasNextPage }
-  media(type:ANIME,sort:POPULARITY_DESC,search:$search,genre_in:$genres) {
+  media(type:ANIME,sort:POPULARITY_DESC,search:$search,genre_in:$genres,tag_in:$tags,minimumTagRank:20) {
    id title { romaji english native } coverImage { large medium } description(asHtml:false)
-   genres averageScore episodes seasonYear startDate { year } format status
+   genres tags { name rank isMediaSpoiler } averageScore episodes seasonYear startDate { year } format status
   }
  }
 }`;
@@ -178,7 +180,7 @@ async function loadCatalog({reset=true}={}){
  loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
-  const selectedGenre=GENRE_MAP[genre]||genre;const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||!ANILIST_GENRES.has(selectedGenre)?null:[selectedGenre]};
+  const selectedGenre=GENRE_MAP[genre]||genre;const tagName=GENRE_TAG_MAP[genre]||"";const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||!ANILIST_GENRES.has(selectedGenre)?null:[selectedGenre],tags:tagName?[tagName]:null};
   const data=await apiRequest(LIST_QUERY,variables);
   if(token!==requestToken)return;
   const result=data.Page;
