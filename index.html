@@ -204,6 +204,15 @@ const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],
   }
  }
 }`;
+const FAVORITES_QUERY=`query ($ids:[Int]) {
+ Page(page:1,perPage:50) {
+  media(type:ANIME,id_in:$ids) {
+   id title { romaji english native } coverImage { large medium } description(asHtml:false)
+   genres tags { name rank isMediaSpoiler } averageScore episodes seasonYear startDate { year } format status
+   airingSchedule(notYet:1) { nodes { airingAt episode timeUntilAiring } }
+  }
+ }
+}`;
 const RELATIONS_QUERY=`query ($id:Int!) {
  Media(id:$id,type:ANIME) {
   relations {
@@ -235,18 +244,26 @@ async function loadRelated(id){
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
- loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог…");
+ loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
-  const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||isAniListGenre||!tagName?null:[tagName]};
-  const data=await apiRequest(LIST_QUERY,variables);
+  let data, result;
+  if(view==="favorites"){
+   const ids=[...saved];
+   if(!ids.length){anime=[];hasNextPage=false;setStatus("В избранном пока пусто.");render();return;}
+   data=await apiRequest(FAVORITES_QUERY,{ids});
+   result={media:data.Page.media||[],pageInfo:{hasNextPage:false,currentPage:1}};
+  }else{
+   const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||isAniListGenre||!tagName?null:[tagName]};
+   data=await apiRequest(LIST_QUERY,variables);
+   result=data.Page;
+  }
   if(token!==requestToken)return;
-  const result=data.Page;
   const incoming=result.media||[];
   anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
   anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
-  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице"+(genre!=="Все"&&!isAniListGenre?" · фильтр по тематике":""));
+  setStatus(view==="favorites"?"Избранное загружено · "+anime.length+" аниме":"Каталог загружен · "+anime.length+" результатов на этой странице"+(genre!=="Все"&&!ANILIST_GENRES.has(GENRE_MAP[genre]||genre)?" · фильтр по тематике":""));
   render();
   enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
@@ -297,11 +314,11 @@ grid.addEventListener("click",e=>{
 grid.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-id]"))openAnime(Number(e.target.dataset.id));});
 search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadCatalog({reset:true}),350);});
 loadMore.addEventListener("click",()=>loadCatalog({reset:false}));
-document.querySelector("#modalFav").addEventListener("click",()=>{if(!selected)return;saved.has(selected.id)?saved.delete(selected.id):saved.add(selected.id);persist();document.querySelector("#modalFav").textContent=saved.has(selected.id)?"♥ В избранном":"♡ В избранное";render();});
+document.querySelector("#modalFav").addEventListener("click",()=>{if(!selected)return;saved.has(selected.id)?saved.delete(selected.id):saved.add(selected.id);persist();document.querySelector("#modalFav").textContent=saved.has(selected.id)?"♥ В избранном":"♡ В избранное";if(view==="favorites")loadCatalog({reset:true});else render();});
 document.querySelector("#closeModal").addEventListener("click",()=>document.querySelector("#modal").classList.remove("open"));
 document.querySelector("#modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelector("#modal").classList.remove("open");});
-function setView(v){view=v;render();document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===v));document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});}
+function setView(v){view=v;if(v==="favorites"||anime.length===0)loadCatalog({reset:true});else render();document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===v));document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});}
 document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>{setView(b.dataset.view);if(b.dataset.view!=="favorites"&&anime.length===0)loadCatalog({reset:true});}));
 document.querySelector("#showFav").addEventListener("click",()=>setView("favorites"));
 document.querySelector("#explore").addEventListener("click",()=>{setView("all");document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});if(!anime.length)loadCatalog({reset:true});});
