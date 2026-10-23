@@ -103,9 +103,10 @@ function renderWatchProgress(){
  document.querySelector("#episodeMinus").disabled=watched<=0;
  document.querySelector("#episodePlus").disabled=total>0&&watched>=total;
 }
-const saved = new Set(JSON.parse(localStorage.getItem("animora-favorites") || "[]").map(Number));
+let saved = new Set(); try { const raw=JSON.parse(localStorage.getItem("animora-favorites") || "[]"); saved=new Set((Array.isArray(raw)?raw:[]).map(Number).filter(Number.isFinite)); } catch (_) { saved=new Set(); }
 const grid = document.querySelector("#grid"), filters = document.querySelector("#filters"), search = document.querySelector("#search");
 const statusEl = document.querySelector("#status"), loadMore = document.querySelector("#loadMore");
+grid.addEventListener("click",e=>{if(e.target?.id==="retry")loadCatalog({reset:true});});
 function persist(){localStorage.setItem("animora-favorites", JSON.stringify([...saved]));}
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function plainText(s=""){const t=document.createElement("div");t.innerHTML=s;return (t.textContent||t.innerText||"").trim();}
@@ -264,7 +265,7 @@ async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
  loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
- if(reset){page=1;hasNextPage=false;if(!anime.length){anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");}}
+ if(reset){page=1;hasNextPage=false;if(view==="favorites"||q||genre!=="Все"){anime=[];render();}else if(!anime.length){anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");}}
  try{
   let data, result;
   if(view==="favorites"){
@@ -288,7 +289,7 @@ async function loadCatalog({reset=true}={}){
   enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
   if(token!==requestToken)return;
-  let restored=false;
+  let restored=false, backupFailure="";
   if(view!=="favorites"){
    try{
     setStatus("Основной каталог недоступен · пробуем резервный источник…");
@@ -319,7 +320,7 @@ async function loadCatalog({reset=true}={}){
     if(genre!=="Все")setStatus("Резервный каталог · жанры можно фильтровать среди загруженных результатов");
     else setStatus("Загружено из резервного каталога · "+anime.length+" аниме");
     render();restored=true;
-   }catch(backupError){}
+   }catch(backupError){backupFailure=backupError?.message||"неизвестная ошибка";}
   }
   if(!restored&&!anime.length&&view!=="favorites"&&genre==="Все"&&!q){
    try{
@@ -331,15 +332,15 @@ async function loadCatalog({reset=true}={}){
     }
    }catch(_){}
   }
-  if(!restored&&!anime.length&&view!=="favorites"){
-
+  if(!restored&&!anime.length&&view!=="favorites"&&!q&&genre==="Все"){
    anime=makeStarterCatalog();
    hasNextPage=false;page=1;render();restored=true;
    setStatus("Внешние каталоги недоступны · показана стартовая подборка ANIMORA");
   }
   if(!restored){
-   setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.");
-   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к основному и резервному каталогам.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
+   const detail=backupFailure?" Причина резервного источника: "+backupFailure+".":"";
+   setStatus("Не удалось загрузить данные онлайн. Проверь интернет или попробуй ещё раз."+detail);
+   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось загрузить этот запрос из онлайн-каталогов.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
   }
  }finally{
   if(token===requestToken){loading=false;loadMore.disabled=false;if(pendingLoad){const next=pendingLoad;pendingLoad=null;loadCatalog(next);}}
