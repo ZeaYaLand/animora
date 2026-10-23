@@ -227,12 +227,20 @@ function render(){
  loadMore.hidden=!(hasNextPage && view!=="favorites" && !search.value.trim());
 }
 function setStatus(msg){statusEl.textContent=msg;}
+function onlineHttpError(response,sourceName){
+ const status=response.status;
+ const retryAfter=response.headers?.get("Retry-After");
+ if(status===429)return new Error(sourceName+" ограничил частоту запросов (HTTP 429)"+(retryAfter?"; повторите через "+retryAfter+" сек.":"; подождите немного и повторите попытку"));
+ if(status===403)return new Error(sourceName+" временно запретил запрос (HTTP 403)");
+ if(status===503||status===502||status===504)return new Error(sourceName+" временно недоступен (HTTP "+status+")");
+ return new Error(sourceName+" ответил с кодом "+status);
+}
 async function apiRequest(query, variables){
  const controller=new AbortController();
  const timeout=setTimeout(()=>controller.abort(),8000);
  try{
   const response=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query,variables}),signal:controller.signal});
-  if(!response.ok) throw new Error("AniList ответил с кодом "+response.status);
+  if(!response.ok) throw onlineHttpError(response,"AniList");
   const json=await response.json();
   if(json.errors?.length) throw new Error(json.errors[0].message||"Ошибка GraphQL");
   if(!json.data) throw new Error("AniList не вернул данные");
@@ -312,7 +320,7 @@ async function fetchCompatibleCatalog(base,query,pageNumber,sourceName){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
  try{
   const response=await fetch(endpoint,{headers:{Accept:"application/json"},signal:controller.signal});
-  if(!response.ok)throw new Error(sourceName+" HTTP "+response.status);
+  if(!response.ok)throw onlineHttpError(response,sourceName);
   const json=await response.json();
   const rows=Array.isArray(json.data)?json.data:Array.isArray(json.data?.data)?json.data.data:[];
   if(!rows.length&&pageNumber===1)throw new Error(sourceName+" вернул пустой или неизвестный формат данных");
@@ -327,7 +335,7 @@ async function fetchKitsuCatalog(query,pageNumber){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
  try{
   const response=await fetch("https://kitsu.io/api/edge/anime?"+params.toString(),{headers:{Accept:"application/vnd.api+json"},signal:controller.signal});
-  if(!response.ok)throw new Error("Kitsu HTTP "+response.status);
+  if(!response.ok)throw onlineHttpError(response,"Kitsu");
   const json=await response.json();
   if(!Array.isArray(json.data))throw new Error("Kitsu вернул неверный формат данных");
   const genreNames=new Map((json.included||[]).filter(x=>x.type==="genres").map(x=>[String(x.id),x.attributes?.name||""]));
@@ -350,7 +358,7 @@ async function fetchJikanCatalog(query,pageNumber){
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),7000);
  try{
   const response=await fetch(endpoint,{headers:{Accept:"application/json"},signal:controller.signal});
-  if(!response.ok)throw new Error("Jikan API: HTTP "+response.status);
+  if(!response.ok)throw onlineHttpError(response,"Jikan API");
   const json=await response.json();
   if(!Array.isArray(json.data))throw new Error("Jikan API вернул неверный формат данных");
   return {media:json.data.map(mapJikanAnime),pageInfo:{currentPage:Number(json.pagination?.current_page||pageNumber),hasNextPage:!!json.pagination?.has_next_page}};
