@@ -178,9 +178,21 @@ async function loadLocalCatalog(){
  if(localCatalog)return localCatalog;
  if(localCatalogPromise)return localCatalogPromise;
  localCatalogPromise=(async()=>{
-  const response=await fetch("./data/catalog.json",{cache:"no-cache"});
-  if(!response.ok)throw new Error("Локальная база пока не опубликована (HTTP "+response.status+")");
-  const db=await response.json();
+  let db=null;
+  if(typeof DecompressionStream==="function"){
+   try{
+    const compressed=await fetch("./data/catalog.json.gz",{cache:"no-cache"});
+    if(compressed.ok){
+     const stream=compressed.body.pipeThrough(new DecompressionStream("gzip"));
+     db=await new Response(stream).json();
+    }
+   }catch(error){console.warn("Сжатый каталог недоступен, пробуем обычный JSON:",error);}
+  }
+  if(!db){
+   const response=await fetch("./data/catalog.json",{cache:"no-cache"});
+   if(!response.ok)throw new Error("Локальная база пока не опубликована (HTTP "+response.status+")");
+   db=await response.json();
+  }
   if(!Array.isArray(db.items)||db.items.length<10000)throw new Error("Локальная база неполная");
   localCatalog=db.items.map((x,i)=>{
    const tags=(x.tags||[]).map(name=>({name,rank:100,isMediaSpoiler:false}));
