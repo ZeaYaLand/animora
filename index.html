@@ -278,19 +278,47 @@ async function loadCatalog({reset=true}={}){
  }catch(error){
   if(token!==requestToken)return;
   let restored=false;
-  if(!anime.length&&view!=="favorites"&&genre==="Все"&&!q){
+  if(view!=="favorites"){
+   try{
+    setStatus("Основной каталог недоступен · пробуем резервный источник…");
+    const endpoint=q?"https://api.jikan.moe/v4/anime?q="+encodeURIComponent(q)+"&page="+page+"&limit="+PAGE_SIZE:"https://api.jikan.moe/v4/top/anime?page="+page;
+    const backupResponse=await fetch(endpoint,{headers:{"Accept":"application/json"}});
+    if(!backupResponse.ok)throw new Error("Резервный каталог ответил с кодом "+backupResponse.status);
+    const backup=await backupResponse.json();
+    const incoming=(backup.data||[]).map(x=>({
+     id:100000000+(Number(x.mal_id)||Math.floor(Math.random()*10000000)),
+     title:{english:x.title_english||x.title||"",romaji:x.title||"",native:x.title_japanese||""},
+     russianTitle:x.title||x.title_english||x.title_japanese||"Без названия",
+     coverImage:{large:x.images?.webp?.large_image_url||x.images?.jpg?.large_image_url||"",medium:x.images?.webp?.image_url||x.images?.jpg?.image_url||""},
+     description:x.synopsis||"Описание пока отсутствует.",
+     genres:(x.genres||[]).map(g=>g.name),tags:[],averageScore:x.score?Math.round(x.score*10):null,
+     episodes:x.episodes||null,seasonYear:x.year||x.aired?.prop?.from?.year||null,
+     startDate:{year:x.year||x.aired?.prop?.from?.year||null},
+     format:x.type==="TV"?"TV":x.type==="Movie"?"MOVIE":x.type==="OVA"?"OVA":x.type==="ONA"?"ONA":x.type==="Special"?"SPECIAL":"TV",
+     status:x.status==="Currently Airing"?"RELEASING":x.status==="Finished Airing"?"FINISHED":"NOT_YET_RELEASED",
+     airingSchedule:{nodes:[]},sourceName:"Jikan"
+    }));
+    if(token!==requestToken)return;
+    anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
+    hasNextPage=!!backup.pagination?.has_next_page;page=Number(backup.pagination?.current_page||page)+1;
+    if(genre!=="Все")setStatus("Резервный каталог · жанры можно фильтровать среди загруженных результатов");
+    else setStatus("Загружено из резервного каталога · "+anime.length+" аниме");
+    render();restored=true;
+   }catch(backupError){}
+  }
+  if(!restored&&!anime.length&&view!=="favorites"&&genre==="Все"&&!q){
    try{
     const cached=JSON.parse(localStorage.getItem("animora-catalog-cache-v1")||"null");
     if(cached&&Array.isArray(cached.items)&&cached.items.length){
      anime=cached.items;anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
      hasNextPage=false;restored=true;render();
-     setStatus("AniList временно недоступен · показана сохранённая подборка");
+     setStatus("AniList и резервный источник недоступны · показана сохранённая подборка");
     }
    }catch(_){}
   }
   if(!restored){
    setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.");
-   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к AniList.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
+   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к основному и резервному каталогам.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
   }
  }finally{
   if(token===requestToken){loading=false;loadMore.disabled=false;if(pendingLoad){const next=pendingLoad;pendingLoad=null;loadCatalog(next);}}
