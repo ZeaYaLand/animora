@@ -188,11 +188,19 @@ function render(){
 }
 function setStatus(msg){statusEl.textContent=msg;}
 async function apiRequest(query, variables){
- const response=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query,variables})});
- if(!response.ok) throw new Error("AniList ответил с кодом "+response.status);
- const json=await response.json();
- if(json.errors?.length) throw new Error(json.errors[0].message||"Ошибка GraphQL");
- return json.data;
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),15000);
+ try{
+  const response=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query,variables}),signal:controller.signal});
+  if(!response.ok) throw new Error("AniList ответил с кодом "+response.status);
+  const json=await response.json();
+  if(json.errors?.length) throw new Error(json.errors[0].message||"Ошибка GraphQL");
+  if(!json.data) throw new Error("AniList не вернул данные");
+  return json.data;
+ }catch(error){
+  if(error.name==="AbortError")throw new Error("AniList не ответил за 15 секунд");
+  throw error;
+ }finally{clearTimeout(timeout);}
 }
 const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],$tags:[String]) {
  Page(page:$page,perPage:$perPage) {
@@ -262,14 +270,28 @@ async function loadCatalog({reset=true}={}){
   const incoming=result.media||[];
   anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
   anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
+  if(view!=="favorites"&&genre==="Все"&&!q&&page===1){try{localStorage.setItem("animora-catalog-cache-v1",JSON.stringify({savedAt:Date.now(),items:incoming}));}catch(_){}}
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
   setStatus(view==="favorites"?"Избранное загружено · "+anime.length+" аниме":"Каталог загружен · "+anime.length+" результатов на этой странице"+(genre!=="Все"&&((!ANILIST_GENRES.has(GENRE_MAP[genre]||genre))||["Романтическая комедия","Демоны","CGDCT"].includes(genre))?" · фильтр по тематике":""));
   render();
   enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
   if(token!==requestToken)return;
-  setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.");
-  if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к AniList.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
+  let restored=false;
+  if(!anime.length&&view!=="favorites"&&genre==="Все"&&!q){
+   try{
+    const cached=JSON.parse(localStorage.getItem("animora-catalog-cache-v1")||"null");
+    if(cached&&Array.isArray(cached.items)&&cached.items.length){
+     anime=cached.items;anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
+     hasNextPage=false;restored=true;render();
+     setStatus("AniList временно недоступен · показана сохранённая подборка");
+    }
+   }catch(_){}
+  }
+  if(!restored){
+   setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.");
+   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к AniList.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
+  }
  }finally{
   if(token===requestToken){loading=false;loadMore.disabled=false;if(pendingLoad){const next=pendingLoad;pendingLoad=null;loadCatalog(next);}}
  }
