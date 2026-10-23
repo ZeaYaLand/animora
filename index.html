@@ -293,6 +293,28 @@ async function fetchCompatibleCatalog(base,query,pageNumber,sourceName){
  }catch(e){if(e.name==="AbortError")throw new Error(sourceName+" не ответил за 10 секунд");throw e;}
  finally{clearTimeout(timer);}
 }
+async function fetchKitsuCatalog(query,pageNumber){
+ const params=new URLSearchParams({"page[limit]":String(PAGE_SIZE),"page[offset]":String((pageNumber-1)*PAGE_SIZE),"sort":"popularityRank","include":"genres"});
+ if(query)params.set("filter[text]",query);
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
+ try{
+  const response=await fetch("https://kitsu.io/api/edge/anime?"+params.toString(),{headers:{Accept:"application/vnd.api+json"},signal:controller.signal});
+  if(!response.ok)throw new Error("Kitsu HTTP "+response.status);
+  const json=await response.json();
+  if(!Array.isArray(json.data))throw new Error("Kitsu вернул неверный формат данных");
+  const genreNames=new Map((json.included||[]).filter(x=>x.type==="genres").map(x=>[String(x.id),x.attributes?.name||""]));
+  const media=json.data.map(x=>{
+   const a=x.attributes||{},titles=a.titles||{},links=x.relationships?.genres?.data||[];
+   const subtype=String(a.subtype||"TV").toUpperCase();
+   const format=subtype==="MOVIE"?"MOVIE":subtype==="OVA"?"OVA":subtype==="ONA"?"ONA":subtype==="SPECIAL"?"SPECIAL":subtype==="MUSIC"?"MUSIC":subtype==="TV_SHORT"?"TV_SHORT":"TV";
+   const year=Number(String(a.startDate||"").slice(0,4))||null;
+   const title=a.canonicalTitle||titles.en||titles.en_jp||titles.ja_jp||"Без названия";
+   return {id:200000000+Number(x.id||0),sourceId:String(x.id||""),title:{english:titles.en||titles.en_jp||title,romaji:a.canonicalTitle||title,native:titles.ja_jp||""},russianTitle:titles.ru||titles.en||title,coverImage:{large:a.posterImage?.large||a.posterImage?.original||"",medium:a.posterImage?.medium||a.posterImage?.small||""},description:a.synopsis||"Описание пока отсутствует.",genres:links.map(g=>genreNames.get(String(g.id))).filter(Boolean),tags:[],averageScore:a.averageRating?Math.round(Number(a.averageRating)):null,episodes:a.episodeCount||null,seasonYear:year,startDate:{year},format,status:a.status==="current"?"RELEASING":a.status==="finished"?"FINISHED":"NOT_YET_RELEASED",airingSchedule:{nodes:[]},sourceName:"Kitsu"};
+  });
+  return {media,pageInfo:{currentPage:pageNumber,hasNextPage:!!json.links?.next}};
+ }catch(e){if(e.name==="AbortError")throw new Error("Kitsu не ответил за 10 секунд");throw e;}
+ finally{clearTimeout(timer);}
+}
 async function fetchJikanCatalog(query,pageNumber){
  const endpoint=query
   ?"https://api.jikan.moe/v4/anime?q="+encodeURIComponent(query)+"&page="+pageNumber+"&limit="+PAGE_SIZE
@@ -346,6 +368,7 @@ async function loadCatalog({reset=true}={}){
    const failures=[];
    const sources=[
     {name:"Tenrai",run:()=>fetchCompatibleCatalog("https://api.tenrai.org/v1",q,page,"Tenrai")},
+    {name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},
     {name:"Jikan Edge",run:()=>fetchCompatibleCatalog("https://jikan.lucashdo.com/v1",q,page,"Jikan Edge")},
     {name:"Jikan резерв",run:()=>fetchJikanCatalog(q,page)}
    ];
