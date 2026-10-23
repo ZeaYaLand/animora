@@ -343,10 +343,10 @@ async function loadCatalog({reset=true}={}){
    result={media:data.Page.media||[],pageInfo:{hasNextPage:false,currentPage:1}};
   }else{
    try{
-    result=await fetchJikanCatalog(q,page);
-    setStatus("Загружаем онлайн-каталог Jikan…");
-   }catch(jikanError){
-    setStatus("Резервный источник недоступен · подключаем AniList…");
+    setStatus("Подключаем основной каталог Tenrai…");
+    result=await fetchCompatibleCatalog("https://api.tenrai.org/v1",q,page,"Tenrai");
+   }catch(tenraiError){
+    setStatus("Tenrai недоступен · подключаем AniList…");
     const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const tagOnly=new Set(["Романтическая комедия","Демоны","CGDCT"]);const useTag=!!tagName&&(!isAniListGenre||tagOnly.has(genre));const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||useTag||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||!useTag?null:[tagName]};
     data=await apiRequest(LIST_QUERY,variables);
     result=data.Page;
@@ -367,7 +367,6 @@ async function loadCatalog({reset=true}={}){
   if(view!=="favorites"){
    const failures=[];
    const sources=[
-    {name:"Tenrai",run:()=>fetchCompatibleCatalog("https://api.tenrai.org/v1",q,page,"Tenrai")},
     {name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},
     {name:"Jikan",run:()=>fetchJikanCatalog(q,page)}
    ];
