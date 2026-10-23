@@ -163,7 +163,7 @@ async function findRussianTitle(a){
  return candidates[0]||a.title?.native||"Без названия";
 }
 async function enrichRussianTitles(items){
- const queue=items.filter(a=>!a.russianTitle&&!RU_TITLES[a.title?.english]&&!RU_TITLES[a.title?.romaji]&&!ruTitleCache[String(a.id)]);
+ const queue=items.filter(a=>!RU_TITLES[a.title?.english]&&!RU_TITLES[a.title?.romaji]&&!ruTitleCache[String(a.id)]&&!/[А-Яа-яЁё]/.test(a.russianTitle||""));
  let index=0;
  async function worker(){while(index<queue.length){const a=queue[index++];a.russianTitle=await findRussianTitle(a);if(anime.some(x=>x.id===a.id))render();}}
  await Promise.all(Array.from({length:3},worker));
