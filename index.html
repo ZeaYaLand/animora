@@ -317,7 +317,7 @@ async function fetchCompatibleCatalog(base,query,pageNumber,sourceName){
   const rows=Array.isArray(json.data)?json.data:Array.isArray(json.data?.data)?json.data.data:[];
   if(!rows.length&&pageNumber===1)throw new Error(sourceName+" вернул пустой или неизвестный формат данных");
   const pagination=json.pagination||json.meta?.pagination||{};
-  return {media:rows.map(mapJikanAnime),pageInfo:{currentPage:Number(pagination.current_page||pagination.currentPage||pageNumber),hasNextPage:!!(pagination.has_next_page??pagination.hasNextPage)}};
+  return {media:rows.map(row=>({...mapJikanAnime(row),sourceName})),pageInfo:{currentPage:Number(pagination.current_page||pagination.currentPage||pageNumber),hasNextPage:!!(pagination.has_next_page??pagination.hasNextPage)}};
  }catch(e){if(e.name==="AbortError")throw new Error(sourceName+" не ответил за 7 секунд");throw e;}
  finally{clearTimeout(timer);}
 }
