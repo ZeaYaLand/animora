@@ -1,0 +1,84 @@
+name: Build ANIMORA local anime catalog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 2 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: animora-catalog
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download and build catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request, os, tempfile
+          url = "https://github.com/manami-project/anime-offline-database/releases/download/2026-27/anime-offline-database-minified.json"
+          req = urllib.request.Request(url, headers={"User-Agent": "ANIMORA-catalog-builder/1.0"})
+          with urllib.request.urlopen(req, timeout=180) as response:
+              raw = response.read()
+          source = json.loads(raw)
+          rows = source.get("data", source.get("items", [])) if isinstance(source, dict) else source
+          if not isinstance(rows, list) or len(rows) < 10000:
+              raise SystemExit("Dataset validation failed: expected at least 10,000 records")
+          items = []
+          seen = set()
+          for row in rows:
+              if not isinstance(row, dict):
+                  continue
+              title = str(row.get("title") or "").strip()
+              if not title:
+                  continue
+              sources = row.get("sources") or []
+              key = tuple(sources) if sources else title.casefold()
+              if key in seen:
+                  continue
+              seen.add(key)
+              season = row.get("animeSeason") or {}
+              year = season.get("year") if isinstance(season, dict) else None
+              picture = row.get("picture") or row.get("thumbnail") or ""
+              items.append({
+                  "title": title,
+                  "type": row.get("type") or "TV",
+                  "episodes": row.get("episodes"),
+                  "status": row.get("status"),
+                  "year": year,
+                  "picture": picture,
+                  "synonyms": (row.get("synonyms") or [])[:12],
+                  "studios": (row.get("studios") or [])[:8],
+                  "tags": [str(t.get("name") if isinstance(t, dict) else t) for t in (row.get("tags") or []) if (t.get("name") if isinstance(t, dict) else t)],
+                  "sources": sources
+              })
+          if len(items) < 10000:
+              raise SystemExit(f"Catalog too small after validation: {len(items)}")
+          os.makedirs("data", exist_ok=True)
+          with open("data/catalog.json", "w", encoding="utf-8") as f:
+              json.dump({"source": "anime-offline-database", "license": "ODbL-1.0 / DbCL-1.0", "attribution": "manami-project/anime-offline-database", "generatedAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "count": len(items), "items": items}, f, ensure_ascii=False, separators=(",", ":"))
+          print(f"Built {len(items)} anime records; output bytes: {os.path.getsize('data/catalog.json')}")
+          PY
+
+      - name: Commit catalog if changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/catalog.json
+          if git diff --cached --quiet; then
+            echo "Catalog unchanged; nothing to commit."
+          else
+            git commit -m "Build local anime catalog"
+            git push
+          fi
