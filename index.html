@@ -266,7 +266,7 @@ function mapJikanAnime(x){
  return {
   id:100000000+(Number(x.mal_id)||0),
   title:{english:x.title_english||x.title||"",romaji:x.title||"",native:x.title_japanese||""},
-  russianTitle:x.title||x.title_english||x.title_japanese||"Без названия",
+  russianTitle:"",
   coverImage:{large:x.images?.webp?.large_image_url||x.images?.jpg?.large_image_url||"",medium:x.images?.webp?.image_url||x.images?.jpg?.image_url||""},
   description:x.synopsis||"Описание пока отсутствует.",
   genres:(x.genres||[]).map(g=>g.name),tags:[],averageScore:x.score?Math.round(x.score*10):null,
@@ -309,7 +309,7 @@ async function fetchKitsuCatalog(query,pageNumber){
    const format=subtype==="MOVIE"?"MOVIE":subtype==="OVA"?"OVA":subtype==="ONA"?"ONA":subtype==="SPECIAL"?"SPECIAL":subtype==="MUSIC"?"MUSIC":subtype==="TV_SHORT"?"TV_SHORT":"TV";
    const year=Number(String(a.startDate||"").slice(0,4))||null;
    const title=a.canonicalTitle||titles.en||titles.en_jp||titles.ja_jp||"Без названия";
-   return {id:200000000+Number(x.id||0),sourceId:String(x.id||""),title:{english:titles.en||titles.en_jp||title,romaji:a.canonicalTitle||title,native:titles.ja_jp||""},russianTitle:titles.ru||titles.en||title,coverImage:{large:a.posterImage?.large||a.posterImage?.original||"",medium:a.posterImage?.medium||a.posterImage?.small||""},description:a.synopsis||"Описание пока отсутствует.",genres:links.map(g=>genreNames.get(String(g.id))).filter(Boolean),tags:[],averageScore:a.averageRating?Math.round(Number(a.averageRating)):null,episodes:a.episodeCount||null,seasonYear:year,startDate:{year},format,status:a.status==="current"?"RELEASING":a.status==="finished"?"FINISHED":"NOT_YET_RELEASED",airingSchedule:{nodes:[]},sourceName:"Kitsu"};
+   return {id:200000000+Number(x.id||0),sourceId:String(x.id||""),title:{english:titles.en||titles.en_jp||title,romaji:a.canonicalTitle||title,native:titles.ja_jp||""},russianTitle:titles.ru||"",coverImage:{large:a.posterImage?.large||a.posterImage?.original||"",medium:a.posterImage?.medium||a.posterImage?.small||""},description:a.synopsis||"Описание пока отсутствует.",genres:links.map(g=>genreNames.get(String(g.id))).filter(Boolean),tags:[],averageScore:a.averageRating?Math.round(Number(a.averageRating)):null,episodes:a.episodeCount||null,seasonYear:year,startDate:{year},format,status:a.status==="current"?"RELEASING":a.status==="finished"?"FINISHED":"NOT_YET_RELEASED",airingSchedule:{nodes:[]},sourceName:"Kitsu"};
   });
   return {media,pageInfo:{currentPage:pageNumber,hasNextPage:!!json.links?.next}};
  }catch(e){if(e.name==="AbortError")throw new Error("Kitsu не ответил за 7 секунд");throw e;}
@@ -351,6 +351,21 @@ async function loadCatalog({reset=true}={}){
     data=await apiRequest(LIST_QUERY,variables);
     result=data.Page;
    }
+   // Merge unique anime from Kitsu and Jikan into the current page.
+   const extraSources=[()=>fetchKitsuCatalog(q,page),()=>fetchJikanCatalog(q,page)];
+   const extraResults=await Promise.allSettled(extraSources.map(run=>run()));
+   const merged=[...(result.media||[])];
+   const normalizeKey=a=>String(a.title?.english||a.title?.romaji||a.title?.native||"").toLowerCase().replace(/[^a-zа-яё0-9]/gi,"");
+   const known=new Set(merged.map(normalizeKey).filter(Boolean));
+   for(const settled of extraResults){
+    if(settled.status!=="fulfilled")continue;
+    for(const item of (settled.value.media||[])){
+     const key=normalizeKey(item);
+     if(!key||known.has(key))continue;
+     known.add(key);merged.push(item);
+    }
+   }
+   result={...result,media:merged};
   }
   if(token!==requestToken)return;
   const incoming=result.media||[];
