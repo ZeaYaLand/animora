@@ -224,7 +224,7 @@ function render(){
   const title=titleOf(a), poster=a.coverImage?.large||a.coverImage?.medium||"";
   return '<article class="anime-card" data-id="'+a.id+'" tabindex="0" aria-label="Открыть '+esc(title)+'"><div class="poster"><div class="poster-fallback">✦</div>'+(poster?'<img loading="lazy" src="'+esc(poster)+'" alt="Постер '+esc(title)+'" onerror="this.style.display=\'none\'">':"")+'<span class="score">★ '+scoreOf(a)+'</span><button class="fav '+(saved.has(a.id)?"saved":"")+'" data-fav="'+a.id+'" aria-label="Добавить в избранное">'+(saved.has(a.id)?"♥":"♡")+'</button><div class="poster-title">'+esc(title)+'</div></div><div class="card-info"><h3>'+esc(title)+'</h3><div class="meta"><span>'+esc(yearOf(a))+' · '+esc(genreRu((a.genres||[])[0]||"Аниме"))+'</span><span class="tag">'+esc(a.episodes? a.episodes+" сер.":"Аниме")+'</span></div></div></article>';
  }).join(""):'<div class="empty">Ничего не найдено.<br>Попробуй другой запрос или жанр.</div>';
- loadMore.hidden=!(hasNextPage && view!=="favorites" && !search.value.trim());
+ loadMore.hidden=!(hasNextPage && view!=="favorites");
 }
 function setStatus(msg){statusEl.textContent=msg;}
 function onlineHttpError(response,sourceName){
