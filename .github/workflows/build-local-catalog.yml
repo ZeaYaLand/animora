@@ -91,6 +91,14 @@ jobs:
           if size < 1000000:
               raise SystemExit(f"Catalog file unexpectedly small: {size} bytes")
           print(f"Built {len(items)} anime records; output bytes: {size}")
+          import gzip
+          compressed = pathlib.Path("data/catalog.json.gz")
+          with gzip.open(compressed, "wb", compresslevel=9) as stream:
+              stream.write(output.read_bytes())
+          compressed_size = compressed.stat().st_size
+          if compressed_size < 100000:
+              raise SystemExit(f"Compressed catalog unexpectedly small: {compressed_size} bytes")
+          print(f"gzip catalog for faster mobile downloads: {compressed_size} bytes")
           PY
 
       - name: Validate and commit catalog
@@ -103,11 +111,13 @@ jobs:
           db = json.loads(p.read_text(encoding="utf-8"))
           assert isinstance(db.get("items"), list) and len(db["items"]) >= 10000
           assert db.get("count") == len(db["items"])
+          compressed = pathlib.Path("data/catalog.json.gz")
+          assert compressed.exists() and compressed.stat().st_size > 100000
           print(f"Validated catalog: {len(db['items'])} records, {p.stat().st_size} bytes")
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/catalog.json
+          git add data/catalog.json data/catalog.json.gz
           if git diff --cached --quiet; then
             echo "Catalog unchanged; nothing to commit."
           else
