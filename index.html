@@ -276,6 +276,23 @@ function mapJikanAnime(x){
   airingSchedule:{nodes:[]},sourceName:"Jikan"
  };
 }
+async function fetchCompatibleCatalog(base,query,pageNumber,sourceName){
+ const params=new URLSearchParams({page:String(pageNumber),limit:String(PAGE_SIZE)});
+ if(query)params.set("q",query);
+ else if(sourceName==="Jikan Edge"){params.set("order_by","popularity");params.set("sort","desc");}
+ const endpoint=base+(query?"/anime?"+params.toString():sourceName==="Tenrai"?"/anime?"+params.toString():sourceName==="Jikan Edge"?"/top/anime?"+params.toString():"/anime?"+params.toString());
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
+ try{
+  const response=await fetch(endpoint,{headers:{Accept:"application/json"},signal:controller.signal});
+  if(!response.ok)throw new Error(sourceName+" HTTP "+response.status);
+  const json=await response.json();
+  const rows=Array.isArray(json.data)?json.data:Array.isArray(json.data?.data)?json.data.data:[];
+  if(!rows.length&&pageNumber===1)throw new Error(sourceName+" вернул пустой или неизвестный формат данных");
+  const pagination=json.pagination||json.meta?.pagination||{};
+  return {media:rows.map(mapJikanAnime),pageInfo:{currentPage:Number(pagination.current_page||pagination.currentPage||pageNumber),hasNextPage:!!(pagination.has_next_page??pagination.hasNextPage)}};
+ }catch(e){if(e.name==="AbortError")throw new Error(sourceName+" не ответил за 10 секунд");throw e;}
+ finally{clearTimeout(timer);}
+}
 async function fetchJikanCatalog(query,pageNumber){
  const endpoint=query
   ?"https://api.jikan.moe/v4/anime?q="+encodeURIComponent(query)+"&page="+pageNumber+"&limit="+PAGE_SIZE
@@ -324,51 +341,47 @@ async function loadCatalog({reset=true}={}){
   enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
   if(token!==requestToken)return;
-  let restored=false, backupFailure="";
+  let restored=false;
   if(view!=="favorites"){
-   try{
-    setStatus("Основной каталог недоступен · пробуем резервный источник…");
-    const endpoint=q?"https://api.jikan.moe/v4/anime?q="+encodeURIComponent(q)+"&page="+page+"&limit="+PAGE_SIZE:"https://api.jikan.moe/v4/top/anime?page="+page;
-    const backupController=new AbortController();
-    const backupTimeout=setTimeout(()=>backupController.abort(),8000);
-    let backupResponse;
+   const failures=[];
+   const sources=[
+    {name:"Tenrai",run:()=>fetchCompatibleCatalog("https://api.tenrai.org/v1",q,page,"Tenrai")},
+    {name:"Jikan Edge",run:()=>fetchCompatibleCatalog("https://jikan.lucashdo.com/v1",q,page,"Jikan Edge")},
+    {name:"Jikan резерв",run:()=>fetchJikanCatalog(q,page)}
+   ];
+   for(const source of sources){
     try{
-     backupResponse=await fetch(endpoint,{headers:{"Accept":"application/json"},signal:backupController.signal});
-    }catch(backupFetchError){
-     if(backupFetchError?.name==="AbortError")throw new Error("резервный каталог не ответил за 8 секунд");
-     if(backupFetchError instanceof TypeError)throw new Error("браузер не смог подключиться к резервному каталогу (проверь интернет или ограничения сети)");
-     throw new Error(backupFetchError?.message||"ошибка сетевого запроса");
-    }finally{clearTimeout(backupTimeout);}
-    if(!backupResponse.ok)throw new Error("Резервный каталог ответил с кодом HTTP "+backupResponse.status);
-    const backup=await backupResponse.json();
-    const incoming=(backup.data||[]).map(mapJikanAnime);
-    if(token!==requestToken)return;
-    anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
-    hasNextPage=!!backup.pagination?.has_next_page;page=Number(backup.pagination?.current_page||page)+1;
-    if(genre!=="Все")setStatus("Резервный каталог · жанры можно фильтровать среди загруженных результатов");
-    else setStatus("Загружено из резервного каталога · "+anime.length+" аниме");
-    render();restored=true;
-   }catch(backupError){backupFailure=backupError?.message||"неизвестная ошибка";}
-  }
-  if(!restored&&!anime.length&&view!=="favorites"&&genre==="Все"&&!q){
-   try{
-    const cached=JSON.parse(localStorage.getItem("animora-catalog-cache-v1")||"null");
-    if(cached&&Array.isArray(cached.items)&&cached.items.length){
-     anime=cached.items;anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
-     hasNextPage=false;restored=true;render();
-     setStatus("AniList и резервный источник недоступны · показана сохранённая подборка");
-    }
-   }catch(_){}
-  }
-  if(!restored&&!anime.length&&view!=="favorites"&&!q&&genre==="Все"){
-   anime=makeStarterCatalog();
-   hasNextPage=false;page=1;render();restored=true;
-   setStatus("Внешние каталоги недоступны · показана стартовая подборка ANIMORA");
-  }
-  if(!restored){
-   const detail=backupFailure?" Причина резервного источника: "+backupFailure+".":"";
-   setStatus("Не удалось загрузить данные онлайн. Проверь интернет или попробуй ещё раз."+detail);
-   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось загрузить этот запрос из онлайн-каталогов.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
+     setStatus("Источник AniList/Jikan недоступен · проверяем "+source.name+"…");
+     const backup=await source.run();
+     if(token!==requestToken)return;
+     const incoming=backup.media||[];
+     if(!incoming.length)throw new Error(source.name+" не вернул результатов");
+     anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
+     anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
+     hasNextPage=backup.pageInfo.hasNextPage;page=backup.pageInfo.currentPage+1;
+     setStatus("Каталог загружен · источник: "+source.name+" · "+anime.length+" аниме на экране");
+     render();restored=true;break;
+    }catch(sourceError){failures.push(source.name+": "+(sourceError?.message||"ошибка запроса"));}
+   }
+   if(!restored&&!anime.length&&genre==="Все"&&!q){
+    try{
+     const cached=JSON.parse(localStorage.getItem("animora-catalog-cache-v1")||"null");
+     if(cached&&Array.isArray(cached.items)&&cached.items.length){
+      anime=cached.items;anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
+      hasNextPage=false;restored=true;render();setStatus("Онлайн-источники временно недоступны · показан сохранённый каталог");
+     }
+    }catch(_){}
+   }
+   if(!restored&&!anime.length&&!q&&genre==="Все"){
+    anime=makeStarterCatalog();hasNextPage=false;page=1;render();restored=true;
+    setStatus("Онлайн-источники не ответили · показана стартовая подборка. "+failures.join(" · "));
+   }
+   if(!restored){
+    setStatus("Не удалось загрузить онлайн-каталог. Ошибки источников: "+failures.join(" | "));
+    if(!anime.length)grid.innerHTML='<div class="empty">Все проверенные онлайн-источники не ответили.<br>'+esc(failures.join(" · "))+'<br><button class="btn" id="retry">Повторить загрузку</button></div>';
+   }
+  }else{
+   setStatus("Не удалось загрузить избранное из AniList: "+(error?.message||"неизвестная ошибка"));
   }
  }finally{
   if(token===requestToken){loading=false;loadMore.disabled=false;if(pendingLoad){const next=pendingLoad;pendingLoad=null;loadCatalog(next);}}
