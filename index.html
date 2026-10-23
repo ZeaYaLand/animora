@@ -64,6 +64,7 @@ const API_URL = "https://graphql.anilist.co";
 const PAGE_SIZE = 24;
 const GENRE_MAP = {"Экшен":"Action","Приключения":"Adventure","Комедия":"Comedy","Драма":"Drama","Фэнтези":"Fantasy","Ужасы":"Horror","Меха":"Mecha","Музыка":"Music","Детектив":"Mystery","Психологическое":"Psychological","Романтика":"Romance","Научная фантастика":"Sci-Fi","Повседневность":"Slice of Life","Спорт":"Sports","Сверхъестественное":"Supernatural","Триллер":"Thriller","Тайна":"Mystery","Военное":"Military","Исторический":"Historical","Детское":"Kids","Работа":"Work","Гурман":"Gourmet","Исэкай":"Isekai","Боевые искусства":"Martial Arts","Магия":"Magic","Самураи":"Samurai","Школа":"School","Сёнэн":"Shounen","Сёдзё":"Shoujo","Сэйнэн":"Seinen","Дзёсэй":"Josei","Гарем":"Harem","Обратный гарем":"Reverse Harem","Этти":"Ecchi","Айдолы":"Idols","Музыкальный":"Music","Пародия":"Parody","Постапокалипсис":"Post-Apocalyptic","Романтическая комедия":"Romance","Космос":"Space","Вампиры":"Vampire","Демоны":"Demons","Дети":"Kids","CGDCT":"Cute Girls Doing Cute Things","Триллер":"Thriller","Сверхспособности":"Super Power","Реинкарнация":"Reincarnation"};
 const GENRES = ["Все",...Object.keys(GENRE_MAP)];
+const ANILIST_GENRES = new Set(["Action","Adventure","Comedy","Drama","Fantasy","Horror","Mecha","Music","Mystery","Psychological","Romance","Sci-Fi","Slice of Life","Sports","Supernatural","Thriller"]);
 const GENRE_RU = Object.fromEntries(Object.entries(GENRE_MAP).map(([ru,en])=>[en,ru]));
 const SHIKI_GENRE_RU = {"Action":"Экшен","Adventure":"Приключения","Comedy":"Комедия","Drama":"Драма","Fantasy":"Фэнтези","Horror":"Ужасы","Mecha":"Меха","Music":"Музыка","Mystery":"Детектив","Psychological":"Психологическое","Romance":"Романтика","Sci-Fi":"Научная фантастика","Slice of Life":"Повседневность","Sports":"Спорт","Supernatural":"Сверхъестественное","Thriller":"Триллер","Military":"Военное","Historical":"Исторический","Kids":"Детское","Work":"Работа","Gourmet":"Гурман","Isekai":"Исэкай","Martial Arts":"Боевые искусства","Magic":"Магия","Samurai":"Самураи","School":"Школа","Shounen":"Сёнэн","Shoujo":"Сёдзё","Seinen":"Сэйнэн","Josei":"Дзёсэй","Harem":"Гарем","Reverse Harem":"Обратный гарем","Ecchi":"Этти","Idols":"Айдолы","Parody":"Пародия","Post-Apocalyptic":"Постапокалипсис","Space":"Космос","Vampire":"Вампиры","Demons":"Демоны","Super Power":"Сверхспособности","Reincarnation":"Реинкарнация","Avant Garde":"Авангард","Award Winning":"Отмеченное наградами","Gourmet":"Гурман","Suspense":"Саспенс","Performing Arts":"Исполнительское искусство","Visual Arts":"Изобразительное искусство","Strategy Game":"Стратегия","Educational":"Обучающее","Hentai":"Хентай","Boys Love":"Любовь между парнями","Girls Love":"Любовь между девушками"};
 function genreRu(g){return SHIKI_GENRE_RU[g]||GENRE_RU[g]||g;}
@@ -177,7 +178,7 @@ async function loadCatalog({reset=true}={}){
  loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
-  const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"?null:[GENRE_MAP[genre]||genre]};
+  const selectedGenre=GENRE_MAP[genre]||genre;const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||!ANILIST_GENRES.has(selectedGenre)?null:[selectedGenre]};
   const data=await apiRequest(LIST_QUERY,variables);
   if(token!==requestToken)return;
   const result=data.Page;
@@ -185,7 +186,7 @@ async function loadCatalog({reset=true}={}){
   anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
   anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
-  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице");
+  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице"+(genre!=="Все"&&!ANILIST_GENRES.has(selectedGenre)?" · расширенный жанр фильтруется по загруженным данным":""));
   render();
   enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
