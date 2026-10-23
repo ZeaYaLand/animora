@@ -392,6 +392,52 @@ async function fetchJikanCatalog(query,pageNumber){
  }catch(error){if(error.name==="AbortError")throw new Error("Jikan API не ответил за 7 секунд");throw error;}
  finally{clearTimeout(timer);}
 }
+const onlineSupplementJobs=new Map();
+const onlineSupplementDone=new Set();
+function mergeCatalogRecords(primary,secondary){
+ const keySet=a=>[a?.russianTitle,a?.title?.english,a?.title?.romaji,a?.title?.native]
+  .filter(Boolean).map(normalizeTitle).filter(Boolean);
+ const result=[],seen=new Set();
+ for(const item of [...(primary||[]),...(secondary||[])]){
+  const keys=keySet(item);
+  if(keys.some(k=>seen.has(k)))continue;
+  keys.forEach(k=>seen.add(k));result.push(item);
+ }
+ return result;
+}
+async function supplementLocalCatalog(query){
+ const key=String(query||"").trim().toLowerCase();
+ if(onlineSupplementDone.has(key))return;
+ if(onlineSupplementJobs.has(key))return onlineSupplementJobs.get(key);
+ const job=(async()=>{
+  let remote=[];
+  try{
+   const main=await fetchCompatibleCatalog("https://api.tenrai.org/v1",key,1,"Tenrai");
+   remote.push(...(main.media||[]));
+  }catch(_){
+   try{
+    const variables={page:1,perPage:PAGE_SIZE,search:key||null,genres:null,tags:null};
+    const data=await apiRequest(LIST_QUERY,variables);
+    remote.push(...(data.Page?.media||[]));
+   }catch(_){}
+  }
+  const backups=await Promise.allSettled([fetchKitsuCatalog(key,1),fetchJikanCatalog(key,1)]);
+  backups.forEach(r=>{if(r.status==="fulfilled")remote.push(...(r.value.media||[]));});
+  if(!remote.length)return;
+  localCatalog=mergeCatalogRecords(remote,localCatalog||[]);
+  onlineSupplementDone.add(key);
+  const currentQuery=search.value.trim().toLowerCase();
+  if(currentQuery!==key||view==="favorites")return;
+  const filtered=filterLocalCatalog(localCatalog);
+  const start=Math.max(0,(page-2)*PAGE_SIZE);
+  anime=filtered.slice(start,start+PAGE_SIZE);
+  hasNextPage=start+PAGE_SIZE<filtered.length;
+  render();
+  if(!loading)setStatus("Каталог ANIMORA обновлён · "+filtered.length.toLocaleString("ru-RU")+" результатов · онлайн-источники объединены с локальной базой");
+ })().catch(error=>console.warn("Онлайн-дополнение каталога не удалось:",error)).finally(()=>onlineSupplementJobs.delete(key));
+ onlineSupplementJobs.set(key,job);
+ return job;
+}
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
@@ -412,6 +458,7 @@ async function loadCatalog({reset=true}={}){
    setStatus("Собственная база ANIMORA · "+filtered.length.toLocaleString("ru-RU")+" результатов");
    render();
    enrichRussianTitles(batch).catch(()=>{});
+   supplementLocalCatalog(q).catch(()=>{});
    return;
   }catch(localError){console.warn("Local catalog unavailable; using online fallback:",localError);}
  }
