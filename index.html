@@ -372,7 +372,7 @@ async function loadCatalog({reset=true}={}){
    hasNextPage=start+PAGE_SIZE<filtered.length;
    page=Math.floor(start/PAGE_SIZE)+2;
    batch.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
-   setStatus("Собственная база ANIMORA · "+filtered.length.toLocaleString("ru-RU")+" результатов · обновление базы еженедельно");
+   setStatus("Собственная база ANIMORA · "+filtered.length.toLocaleString("ru-RU")+" результатов");
    render();
    return;
   }catch(localError){console.warn("Local catalog unavailable; using online fallback:",localError);}
