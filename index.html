@@ -75,7 +75,7 @@ function genresFor(a){const source=a.shikimoriGenres?.length?a.shikimoriGenres:(
 
 let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, pendingLoad = null, searchTimer = null, requestToken = 0;
 let anime = [];
-let localCatalog = null, localCatalogPromise = null;
+
 const relatedAnimeCache = new Map();
 const WATCH_PROGRESS_KEY = "animora-watch-progress-v1";
 let watchProgress = {};
@@ -207,53 +207,6 @@ async function enrichRussianTitles(items){
 function yearOf(a){return a.seasonYear || (a.startDate?.year) || "Год неизвестен";}
 function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "—";}
 function descriptionOf(a){return plainText(a.description || "Описание пока отсутствует.");}
-function stableLocalAnimeId(x){
- const key=[x.title||"",x.year||"",x.type||"",x.picture||""].join("|").toLowerCase();
- let hash=2166136261;
- for(let i=0;i<key.length;i++)hash=Math.imul(hash^key.charCodeAt(i),16777619);
- return 1500000000+((hash>>>0)%500000000);
-}
-async function loadLocalCatalog(){
- if(localCatalog)return localCatalog;
- if(localCatalogPromise)return localCatalogPromise;
- localCatalogPromise=(async()=>{
-  let db=null;
-  if(typeof DecompressionStream==="function"){
-   try{
-    const compressed=await fetch("./data/catalog.json.gz",{cache:"no-cache"});
-    if(compressed.ok){
-     const stream=compressed.body.pipeThrough(new DecompressionStream("gzip"));
-     db=await new Response(stream).json();
-    }
-   }catch(error){console.warn("Сжатый каталог недоступен, пробуем обычный JSON:",error);}
-  }
-  if(!db){
-   const response=await fetch("./data/catalog.json",{cache:"no-cache"});
-   if(!response.ok)throw new Error("Локальная база пока не опубликована (HTTP "+response.status+")");
-   db=await response.json();
-  }
-  if(!Array.isArray(db.items)||db.items.length<10000)throw new Error("Локальная база неполная");
-  let migratedLocalState=false;
-  localCatalog=db.items.map((x,i)=>{
-   const legacyId=700000000+i, stableId=stableLocalAnimeId(x);
-   if(saved.delete(legacyId)){saved.add(stableId);migratedLocalState=true;}
-   if(Object.prototype.hasOwnProperty.call(watchProgress,String(legacyId))){
-    if(!Object.prototype.hasOwnProperty.call(watchProgress,String(stableId)))watchProgress[String(stableId)]=watchProgress[String(legacyId)];
-    delete watchProgress[String(legacyId)];migratedLocalState=true;
-   }
-   const tags=(x.tags||[]).map(name=>({name,rank:100,isMediaSpoiler:false}));
-   const title=String(x.title||"");
-   const russian=(x.synonyms||[]).find(t=>/[А-Яа-яЁё]/.test(t))||"";
-   const year=Number(x.year)||null;
-   const format=({TV:"TV",MOVIE:"MOVIE",OVA:"OVA",ONA:"ONA",SPECIAL:"SPECIAL"})[x.type]||"TV";
-   const status=({FINISHED:"FINISHED",ONGOING:"RELEASING",UPCOMING:"NOT_YET_RELEASED"})[x.status]||"FINISHED";
-   return {id:stableId,title:{english:title,romaji:title,native:""},russianTitle:russian,coverImage:{large:x.picture||"",medium:x.picture||""},description:"Описание пока отсутствует. Сведения собраны из открытой базы аниме.",genres:(x.tags||[]).map(t=>String(t).trim()).map(t=>{const key=t.toLowerCase();return ({"action":"Action","adventure":"Adventure","comedy":"Comedy","drama":"Drama","fantasy":"Fantasy","horror":"Horror","mecha":"Mecha","music":"Music","mystery":"Mystery","psychological":"Psychological","romance":"Romance","sci-fi":"Sci-Fi","slice of life":"Slice of Life","sports":"Sports","supernatural":"Supernatural","thriller":"Thriller","isekai":"Isekai","school":"School","samurai":"Samurai","magic":"Magic","vampire":"Vampire","military":"Military","historical":"Historical","kids":"Kids","work":"Work","gourmet":"Gourmet","martial arts":"Martial Arts","shounen":"Shounen","shoujo":"Shoujo","seinen":"Seinen","josei":"Josei","harem":"Harem","ecchi":"Ecchi","parody":"Parody","space":"Space","super power":"Super Power","reincarnation":"Reincarnation","demons":"Demons"})[key]||null;}).filter(Boolean),tags,averageScore:x.score?Math.round(x.score*10):null,episodes:x.episodes||null,seasonYear:year,startDate:{year},format,status,airingSchedule:{nodes:[]},sourceName:"Локальная база",externalSources:x.sources||[],studios:x.studios||[]};
-  });
-  if(migratedLocalState){try{localStorage.setItem("animora-favorites",JSON.stringify([...saved]));}catch(_){};saveWatchProgress();}
-  return localCatalog;
- })();
- try{return await localCatalogPromise;}finally{localCatalogPromise=null;}
-}
 function filterLocalCatalog(items){
  const q=search.value.trim().toLowerCase();
  return items.filter(a=>(genre==="Все"||genresFor(a).includes(genre)||(a.genres||[]).includes(GENRE_MAP[genre]||genre)||(a.tags||[]).some(t=>(GENRE_TAG_MAP[genre]||"")===t.name))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" "), (a.tags||[]).map(t=>t.name).join(" "), (a.externalSources||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
@@ -336,17 +289,6 @@ async function loadRelated(id){
   }).join("");
  }catch(_){block.hidden=true;}
 }
-const starter=[
- [900000001,"Атака титанов","Attack on Titan",["Экшен","Драма","Фэнтези"],"Человечество укрывается за огромными стенами от титанов. Жизнь меняется, когда появляется враг, способный разрушить защиту."],
- [900000002,"Тетрадь смерти","Death Note",["Триллер","Психологическое","Сверхъестественное"],"Старшеклассник находит загадочную тетрадь, способную убивать людей, чьи имена в неё записаны."],
- [900000003,"Магическая битва","Jujutsu Kaisen",["Экшен","Сверхъестественное","Школа"],"Парень оказывается втянут в мир проклятий и магов после опасного решения, которое меняет его жизнь."],
- [900000004,"Ван-Пис","One Piece",["Приключения","Комедия","Фэнтези"],"Молодой пират отправляется в большое путешествие, чтобы найти легендарное сокровище и стать королём пиратов."],
- [900000005,"Семья шпиона","Spy x Family",["Комедия","Экшен","Повседневность"],"Шпион, наёмная убийца и девочка-телепат создают необычную семью, скрывая друг от друга свои секреты."],
- [900000006,"Провожающая в последний путь Фрирен","Frieren: Beyond Journey's End",["Приключения","Драма","Фэнтези"],"Эльфийская волшебница после победы над королём демонов начинает лучше понимать людей и ценность прожитого времени."],
- [900000007,"Твоё имя","Your Name.",["Романтика","Драма","Сверхъестественное"],"Двое подростков загадочным образом меняются телами и пытаются понять, какая связь возникла между ними."],
- [900000008,"Волейбол!!","Haikyuu!!",["Спорт","Комедия","Школа"],"Увлечённый волейболом школьник стремится стать сильным игроком и приводит команду к новым испытаниям."]
-];
-function makeStarterCatalog(){return starter.map(x=>({id:x[0],title:{english:x[2],romaji:x[2],native:""},russianTitle:x[1],coverImage:{large:"",medium:""},description:x[4],genres:x[3],tags:[],averageScore:null,episodes:null,seasonYear:null,startDate:{year:null},format:"TV",status:"FINISHED",airingSchedule:{nodes:[]},sourceName:"ANIMORA"}));}
 function mapJikanAnime(x){
  const year=x.year||x.aired?.prop?.from?.year||null;
  return {
@@ -482,66 +424,13 @@ function mergeCatalogRecords(primary,secondary){
  }
  return result;
 }
-async function supplementLocalCatalog(query){
- const key=String(query||"").trim().toLowerCase();
- if(onlineSupplementDone.has(key))return;
- if(onlineSupplementJobs.has(key))return onlineSupplementJobs.get(key);
- const job=(async()=>{
-  const maxPages=key?1:3;
-  async function collect(fetchPage){
-   const items=[];
-   for(let pageNumber=1;pageNumber<=maxPages;pageNumber++){
-    try{
-     const result=await fetchPage(pageNumber);
-     const rows=Array.isArray(result?.media)?result.media:[];
-     if(!rows.length)break;
-     items.push(...rows);
-     if(!result.pageInfo?.hasNextPage)break;
-    }catch(error){
-     if(pageNumber===1)throw error;
-     console.warn("Дополнительная страница каталога пропущена:",error);
-     break;
-    }
-   }
-   return items;
-  }
-  const tasks=[
-   collect(pageNumber=>fetchCompatibleCatalog("https://api.tenrai.org/v1",key,pageNumber,"Tenrai")),
-   collect(pageNumber=>fetchKitsuCatalog(key,pageNumber)),
-   collect(pageNumber=>fetchJikanCatalog(key,pageNumber))
-  ];
-  const results=await Promise.allSettled(tasks);
-  let remote=[];
-  results.forEach(result=>{if(result.status==="fulfilled")remote.push(...result.value);});
-  if(!remote.length){
-   try{
-    const variables={page:1,perPage:PAGE_SIZE,search:key||null,genres:null,tags:null};
-    const data=await apiRequest(LIST_QUERY,variables);
-    remote.push(...(data.Page?.media||[]));
-   }catch(error){console.warn("AniList не смог дополнить каталог:",error);}
-  }
-  if(!remote.length)return;
-  localCatalog=mergeCatalogRecords(remote,localCatalog||[]);
-  onlineSupplementDone.add(key);
-  const currentQuery=search.value.trim().toLowerCase();
-  if(currentQuery!==key||view==="favorites")return;
-  const filtered=filterLocalCatalog(localCatalog);
-  const start=Math.max(0,(page-2)*PAGE_SIZE);
-  anime=filtered.slice(start,start+PAGE_SIZE);
-  hasNextPage=start+PAGE_SIZE<filtered.length;
-  render();
-  if(!loading)setStatus("Каталог ANIMORA обновлён · "+filtered.length.toLocaleString("ru-RU")+" результатов · локальная база дополнена онлайн-источниками");
- })().catch(error=>console.warn("Онлайн-дополнение каталога не удалось:",error)).finally(()=>onlineSupplementJobs.delete(key));
- onlineSupplementJobs.set(key,job);
- return job;
-}
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
  const primaryErrors=[];
  // Онлайн-first: не блокируем загрузку большим локальным JSON-каталогом.
  loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
- if(reset){page=1;hasNextPage=false;if(view==="favorites"||q||genre!=="Все"){anime=[];render();}else if(!anime.length){anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");}}
+ if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
   let data, result;
   if(view==="favorites"){
@@ -580,7 +469,6 @@ async function loadCatalog({reset=true}={}){
   const incoming=result.media||[];
   anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
   anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
-  if(view!=="favorites"&&genre==="Все"&&!q&&page===1){try{localStorage.setItem("animora-catalog-cache-v1",JSON.stringify({savedAt:Date.now(),items:incoming}));}catch(_){}}
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
    setStatus(view==="favorites"?"Избранное загружено · "+anime.length+" аниме":"Каталог загружен · "+anime.length+" уникальных результатов · источники: "+[...new Set(incoming.map(a=>a.sourceName||"AniList"))].join(", ")+(sourceErrors.length?" · источники недоступны: "+sourceErrors.join("; "):"")+(genre!=="Все"&&((!ANILIST_GENRES.has(GENRE_MAP[genre]||genre))||["Романтическая комедия","Демоны","CGDCT"].includes(genre))?" · фильтр по тематике":""));
   render();
@@ -607,19 +495,6 @@ async function loadCatalog({reset=true}={}){
      setStatus("Каталог загружен · источник: "+source.name+" · "+anime.length+" аниме на экране");
      render();restored=true;break;
     }catch(sourceError){failures.push(source.name+": "+(sourceError?.message||"ошибка запроса"));}
-   }
-   if(!restored&&!anime.length&&genre==="Все"&&!q){
-    try{
-     const cached=JSON.parse(localStorage.getItem("animora-catalog-cache-v1")||"null");
-     if(cached&&Array.isArray(cached.items)&&cached.items.length){
-      anime=cached.items;anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
-      hasNextPage=false;restored=true;render();setStatus("Онлайн-источники временно недоступны · показан сохранённый каталог");
-     }
-    }catch(_){}
-   }
-   if(!restored&&!anime.length&&!q&&genre==="Все"){
-    anime=makeStarterCatalog();hasNextPage=false;page=1;render();restored=true;
-    setStatus("Онлайн-источники не ответили · показана стартовая подборка. "+failures.join(" · "));
    }
    if(!restored){
     setStatus("Не удалось загрузить онлайн-каталог. Ошибки источников: "+failures.join(" | "));
@@ -680,6 +555,6 @@ function setView(v){view=v;if(v==="favorites"||anime.length===0)loadCatalog({res
 document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>{setView(b.dataset.view);if(b.dataset.view!=="favorites"&&anime.length===0)loadCatalog({reset:true});}));
 document.querySelector("#showFav").addEventListener("click",()=>setView("favorites"));
 document.querySelector("#explore").addEventListener("click",()=>{setView("all");document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});if(!anime.length)loadCatalog({reset:true});});
-renderFilters();if(!anime.length)anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");loadCatalog({reset:true});
+renderFilters();render();setStatus("Подключаем онлайн-каталог…");loadCatalog({reset:true});
 </script>
 </body></html>
