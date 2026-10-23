@@ -153,20 +153,21 @@ async function findRussianTitle(a){
    const wantedEn=normalizeTitle(a.title?.english||"");
    const wantedRomaji=normalizeTitle(a.title?.romaji||"");
    const match=(rows||[]).find(x=>[x.name,x.english].some(t=>t&&(normalizeTitle(t)===wantedEn||normalizeTitle(t)===wantedRomaji)));
-   if(match?.russian){
-    ruTitleCache[key]=match.russian;
+   if(match){
+    if(match.russian)ruTitleCache[key]=match.russian;
     if(Array.isArray(match.genres))a.shikimoriGenres=match.genres.map(g=>g.russian||g.name).filter(Boolean);
-    try{localStorage.setItem(RU_TITLE_CACHE_KEY,JSON.stringify(ruTitleCache));}catch(_){}
-    return match.russian;
+    if(match.description)a.description=match.description;
+    if(match.russian){try{localStorage.setItem(RU_TITLE_CACHE_KEY,JSON.stringify(ruTitleCache));}catch(_){}}
+    return match.russian||candidates[0]||a.title?.native||"Без названия";
    }
   }catch(_){}
  }
  return candidates[0]||a.title?.native||"Без названия";
 }
 async function enrichRussianTitles(items){
- const queue=items.filter(a=>!RU_TITLES[a.title?.english]&&!RU_TITLES[a.title?.romaji]&&!ruTitleCache[String(a.id)]&&!/[А-Яа-яЁё]/.test(a.russianTitle||""));
+ const queue=items.filter(a=>(!/[А-Яа-яЁё]/.test(a.russianTitle||"")&&!RU_TITLES[a.title?.english]&&!RU_TITLES[a.title?.romaji]&&!ruTitleCache[String(a.id)])||!a.description||a.description==="Описание пока отсутствует.");
  let index=0;
- async function worker(){while(index<queue.length){const a=queue[index++];a.russianTitle=await findRussianTitle(a);if(anime.some(x=>x.id===a.id))render();}}
+ async function worker(){while(index<queue.length){const a=queue[index++];const found=await findRussianTitle(a);if(!/[А-Яа-яЁё]/.test(a.russianTitle||""))a.russianTitle=found;if(anime.some(x=>x.id===a.id))render();}}
  await Promise.all(Array.from({length:3},worker));
  items.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
 }
@@ -374,6 +375,7 @@ async function loadCatalog({reset=true}={}){
    batch.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
    setStatus("Собственная база ANIMORA · "+filtered.length.toLocaleString("ru-RU")+" результатов");
    render();
+   enrichRussianTitles(batch).catch(()=>{});
    return;
   }catch(localError){console.warn("Local catalog unavailable; using online fallback:",localError);}
  }
