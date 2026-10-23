@@ -108,7 +108,7 @@ let saved = new Set(); try { const raw=JSON.parse(localStorage.getItem("animora-
 const grid = document.querySelector("#grid"), filters = document.querySelector("#filters"), search = document.querySelector("#search");
 const statusEl = document.querySelector("#status"), loadMore = document.querySelector("#loadMore");
 grid.addEventListener("click",e=>{if(e.target?.id==="retry")loadCatalog({reset:true});});
-function persist(){localStorage.setItem("animora-favorites", JSON.stringify([...saved]));}
+function persist(){try{localStorage.setItem("animora-favorites", JSON.stringify([...saved]));}catch(_){setStatus("Изменения избранного действуют до закрытия страницы: браузер запретил сохранение.");}}
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function plainText(s=""){const t=document.createElement("div");t.innerHTML=s;return (t.textContent||t.innerText||"").trim();}
 const RU_TITLES = {
@@ -166,11 +166,11 @@ async function findRussianTitle(a){
  const candidates=[a.title?.english,a.title?.romaji].filter(Boolean);
  for(const name of candidates){const normalized=String(name).toLowerCase().replace(/[^a-zа-яё0-9]/gi,"");if(RU_TITLES[name]||RU_TITLES_NORMALIZED[normalized])return RU_TITLES[name]||RU_TITLES_NORMALIZED[normalized];}
  const key=String(a.id);
- if(ruTitleCache[key]&&a.description&&a.description!=="Описание пока отсутствует.")return ruTitleCache[key];
+ if(ruTitleCache[key])return ruTitleCache[key];
  for(const query of candidates){
   try{
    const url="https://shikimori.one/api/animes?search="+encodeURIComponent(query)+"&limit=5";
-   const response=await fetch(url,{headers:{"Accept":"application/json","User-Agent":"ANIMORA/1.0 (anime catalog)"}});
+   const response=await fetchOnlineWithRetry(url,{headers:{"Accept":"application/json"}},"Shikimori",6000);
    if(!response.ok)continue;
    const rows=await response.json();
    const wantedEn=normalizeTitle(a.title?.english||"");
@@ -198,7 +198,7 @@ function refreshOpenAnimeDetails(a){
  }).catch(()=>{});
 }
 async function enrichRussianTitles(items){
- const queue=items.filter(a=>(!/[А-Яа-яЁё]/.test(a.russianTitle||"")&&!RU_TITLES[a.title?.english]&&!RU_TITLES[a.title?.romaji]&&!ruTitleCache[String(a.id)])||!a.description||a.description==="Описание пока отсутствует.");
+ const queue=items.filter(a=>(!/[А-Яа-яЁё]/.test(a.russianTitle||"")&&!RU_TITLES[a.title?.english]&&!RU_TITLES[a.title?.romaji]&&!ruTitleCache[String(a.id)])||!a.description||a.description==="Описание пока отсутствует.").filter((a,i,arr)=>arr.findIndex(x=>String(x.id)===String(a.id))===i);
  let index=0;
  async function worker(){while(index<queue.length){const a=queue[index++];const found=await findRussianTitle(a);if(!/[А-Яа-яЁё]/.test(a.russianTitle||""))a.russianTitle=found;if(anime.some(x=>x.id===a.id))render();refreshOpenAnimeDetails(a);}}
  await Promise.all(Array.from({length:3},worker));
@@ -522,7 +522,7 @@ async function loadCatalog({reset=true}={}){
 async function translateDescription(text){
  if(!text||text==="Описание пока отсутствует.")return "Описание пока отсутствует.";
  if(/[А-Яа-яЁё]/.test(text))return text;
- try{const chunks=text.match(/[\s\S]{1,450}/g)||[text];const out=[];for(const chunk of chunks){const u="https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ru&dt=t&q="+encodeURIComponent(chunk);const r=await fetch(u);if(!r.ok)throw new Error("translation unavailable");const j=await r.json();out.push((j[0]||[]).map(x=>x[0]||"").join(""));}return out.join("");}catch(e){return text+"\n\n(Не удалось получить русский перевод.)";}
+ try{const chunks=text.match(/[\s\S]{1,450}/g)||[text];const out=[];for(const chunk of chunks){const u="https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ru&dt=t&q="+encodeURIComponent(chunk);const r=await fetchOnlineWithRetry(u,{headers:{Accept:"application/json"}},"Переводчик",6000);const j=await r.json();out.push((j[0]||[]).map(x=>x[0]||"").join(""));}return out.join("");}catch(e){return text+"\n\n(Не удалось получить русский перевод.)";}
 }
 function openAnime(id){
  selected=anime.find(a=>a.id===id)||relatedAnimeCache.get(id);if(!selected)return;
