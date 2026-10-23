@@ -122,5 +122,6 @@ jobs:
             echo "Catalog unchanged; nothing to commit."
           else
             git commit -m "Build local anime catalog"
+            git pull --rebase origin main
             git push
           fi
