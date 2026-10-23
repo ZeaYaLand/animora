@@ -327,7 +327,7 @@ function makeStarterCatalog(){return starter.map(x=>({id:x[0],title:{english:x[2
 function mapJikanAnime(x){
  const year=x.year||x.aired?.prop?.from?.year||null;
  return {
-  id:100000000+(Number(x.mal_id)||0),
+  id:100000000+(Number(x.mal_id)||0),idMal:Number(x.mal_id)||null,externalSources:x.mal_id?[`https://myanimelist.net/anime/${x.mal_id}`]:[],
   title:{english:x.title_english||x.title||"",romaji:x.title||"",native:x.title_japanese||""},
   russianTitle:"",
   coverImage:{large:x.images?.webp?.large_image_url||x.images?.jpg?.large_image_url||"",medium:x.images?.webp?.image_url||x.images?.jpg?.image_url||""},
