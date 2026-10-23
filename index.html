@@ -143,7 +143,7 @@ async function findRussianTitle(a){
  const candidates=[a.title?.english,a.title?.romaji].filter(Boolean);
  for(const name of candidates)if(RU_TITLES[name])return RU_TITLES[name];
  const key=String(a.id);
- if(ruTitleCache[key])return ruTitleCache[key];
+ if(ruTitleCache[key]&&a.description&&a.description!=="Описание пока отсутствует.")return ruTitleCache[key];
  for(const query of candidates){
   try{
    const url="https://shikimori.one/api/animes?search="+encodeURIComponent(query)+"&limit=5";
