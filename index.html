@@ -59,7 +59,7 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
   <div class="status" id="status" role="status">Подключаем каталог AniList…</div><div class="grid" id="grid"></div><div class="load-row"><button class="btn" id="loadMore" hidden>Загрузить ещё</button></div>
 </main>
 <footer><div class="wrap foot"><div class="brand"><span class="mark">A</span><span>ANI<span>MORA</span></span></div><div>ANIMORA · Каталог аниме</div><div>Чёрный × Фиолетовый</div></div><div class="wrap notice">Каталог и метаданные предоставляются AniList. Информация о сериях и озвучках зависит от доступных источников; этот сайт пока не размещает видеопотоки.</div></footer>
-<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="related" id="relatedBlock" hidden><h3>Связанные аниме</h3><div id="relatedList" class="related-list"></div></div><div class="episodes"><h3>Мой прогресс</h3><div class="episode-row"><span id="progressLabel">Просмотрено 0 серий</span><span id="progressTotal">Всего: неизвестно</span></div><div class="progress-track" style="height:7px;background:#302440;border-radius:99px;overflow:hidden;margin:10px 0 14px"><div id="progressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#c084fc);transition:width .2s"></div></div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="episodeMinus" type="button">− 1 серия</button><button class="btn primary" id="episodePlus" type="button">+ 1 серия</button><button class="btn" id="episodeReset" type="button">Сбросить</button></div><div class="notice" style="margin-top:12px">Прогресс сохраняется на этом устройстве. Просмотр серий пока не встроен; позже подключим легальные источники видео.</div></div></div></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="related" id="relatedBlock" hidden><h3>Связанные аниме</h3><div id="relatedList" class="related-list"></div></div><div class="episodes" id="airingInfo" hidden><h3>Следующая серия</h3><div class="episode-row"><span id="airingEpisode">Эпизод</span><span id="airingDate">Дата уточняется</span></div><div class="notice" id="airingCountdown" style="margin-top:10px"></div></div><div class="episodes"><h3>Мой прогресс</h3><div class="episode-row"><span id="progressLabel">Просмотрено 0 серий</span><span id="progressTotal">Всего: неизвестно</span></div><div class="progress-track" style="height:7px;background:#302440;border-radius:99px;overflow:hidden;margin:10px 0 14px"><div id="progressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#c084fc);transition:width .2s"></div></div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="episodeMinus" type="button">− 1 серия</button><button class="btn primary" id="episodePlus" type="button">+ 1 серия</button><button class="btn" id="episodeReset" type="button">Сбросить</button></div><div class="notice" style="margin-top:12px">Прогресс сохраняется на этом устройстве. Просмотр серий пока не встроен; позже подключим легальные источники видео.</div></div></div></div>
 <script>
 const API_URL = "https://graphql.anilist.co";
 const PAGE_SIZE = 24;
@@ -80,6 +80,19 @@ const WATCH_PROGRESS_KEY = "animora-watch-progress-v1";
 let watchProgress = {};
 try { watchProgress = JSON.parse(localStorage.getItem(WATCH_PROGRESS_KEY) || "{}"); } catch (_) { watchProgress = {}; }
 function saveWatchProgress(){try{localStorage.setItem(WATCH_PROGRESS_KEY,JSON.stringify(watchProgress));}catch(_){}}
+function renderAiringInfo(){
+ if(!selected)return;
+ const block=document.querySelector("#airingInfo");
+ const next=selected.airingSchedule?.nodes?.[0];
+ if(!next||!next.airingAt){block.hidden=true;return;}
+ block.hidden=false;
+ const date=new Date(next.airingAt*1000);
+ document.querySelector("#airingEpisode").textContent="Эпизод "+next.episode;
+ document.querySelector("#airingDate").textContent=date.toLocaleString("ru-RU",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"});
+ const seconds=Math.max(0,Number(next.timeUntilAiring)||Math.floor(date.getTime()/1000-Date.now()/1000));
+ const days=Math.floor(seconds/86400),hours=Math.floor(seconds%86400/3600),minutes=Math.floor(seconds%3600/60);
+ document.querySelector("#airingCountdown").textContent=seconds<=0?"Ожидаем обновление расписания": "До выхода примерно: "+(days?days+" д ":"")+hours+" ч "+minutes+" мин";
+}
 function renderWatchProgress(){
  if(!selected)return;
  const id=String(selected.id), total=Number(selected.episodes)||0;
@@ -187,6 +200,7 @@ const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],
   media(type:ANIME,sort:POPULARITY_DESC,search:$search,genre_in:$genres,tag_in:$tags,minimumTagRank:20) {
    id title { romaji english native } coverImage { large medium } description(asHtml:false)
    genres tags { name rank isMediaSpoiler } averageScore episodes seasonYear startDate { year } format status
+   airingSchedule(notYet:1) { nodes { airingAt episode timeUntilAiring } }
   }
  }
 }`;
@@ -266,6 +280,7 @@ function openAnime(id){
  document.querySelector("#relatedBlock").hidden=true;document.querySelector("#relatedList").innerHTML="";
  document.querySelector("#modal").classList.add("open");
  renderWatchProgress();
+ renderAiringInfo();
  loadRelated(currentId);
 }
 document.querySelector("#episodePlus").addEventListener("click",()=>{if(!selected)return;const id=String(selected.id),total=Number(selected.episodes)||0;watchProgress[id]=Math.min(total||Infinity,(Number(watchProgress[id])||0)+1);saveWatchProgress();renderWatchProgress();});
