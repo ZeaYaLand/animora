@@ -465,9 +465,16 @@ async function loadCatalog({reset=true}={}){
   const successful=[];
   settled.forEach((result,index)=>{
    if(result.status==="fulfilled"){
-    const media=Array.isArray(result.value.media)?result.value.media:[];
-    if(media.length||result.value.pageInfo?.hasNextPage)successful.push({name:sources[index].name,result:result.value});
-    else sourceErrors.push(sources[index].name+": источник ответил, но не вернул записи");
+    const normalizedResult={...result.value,media:Array.isArray(result.value.media)?result.value.media:[]};
+    // Third-party APIs do not share AniList's genre/tag filters. Apply compatible genre filtering locally.
+    if(genre!=="Все"&&sources[index].name!=="AniList"){
+     const selectedGenre=GENRE_MAP[genre];
+     if(selectedGenre&&ANILIST_GENRES.has(selectedGenre)){
+      normalizedResult.media=normalizedResult.media.filter(item=>genresFor(item).some(g=>normalizeTitle(g)===normalizeTitle(genre)||normalizeTitle(g)===normalizeTitle(selectedGenre)));
+     }else normalizedResult.media=[];
+    }
+    if(normalizedResult.media.length||normalizedResult.pageInfo?.hasNextPage)successful.push({name:sources[index].name,result:normalizedResult});
+    else if(genre==="Все"||sources[index].name==="AniList")sourceErrors.push(sources[index].name+": источник ответил, но не вернул записи");
    }else sourceErrors.push(sources[index].name+": "+(result.reason?.message||"ошибка запроса"));
   });
   if(!successful.length)throw new Error("Все онлайн-источники не вернули каталог. "+sourceErrors.join(" | "));
