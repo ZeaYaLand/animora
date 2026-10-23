@@ -62,9 +62,13 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
 <script>
 const API_URL = "https://graphql.anilist.co";
 const PAGE_SIZE = 24;
-const GENRE_MAP = {"Экшен":"Action","Приключения":"Adventure","Комедия":"Comedy","Драма":"Drama","Фэнтези":"Fantasy","Ужасы":"Horror","Меха":"Mecha","Музыка":"Music","Детектив":"Mystery","Психологическое":"Psychological","Романтика":"Romance","Научная фантастика":"Sci-Fi","Повседневность":"Slice of Life","Спорт":"Sports","Сверхъестественное":"Supernatural","Триллер":"Thriller"};
+const GENRE_MAP = {"Экшен":"Action","Приключения":"Adventure","Комедия":"Comedy","Драма":"Drama","Фэнтези":"Fantasy","Ужасы":"Horror","Меха":"Mecha","Музыка":"Music","Детектив":"Mystery","Психологическое":"Psychological","Романтика":"Romance","Научная фантастика":"Sci-Fi","Повседневность":"Slice of Life","Спорт":"Sports","Сверхъестественное":"Supernatural","Триллер":"Thriller","Тайна":"Mystery","Военное":"Military","Исторический":"Historical","Детское":"Kids","Работа":"Work","Гурман":"Gourmet","Исэкай":"Isekai","Боевые искусства":"Martial Arts","Магия":"Magic","Самураи":"Samurai","Школа":"School","Сёнэн":"Shounen","Сёдзё":"Shoujo","Сэйнэн":"Seinen","Дзёсэй":"Josei","Гарем":"Harem","Обратный гарем":"Reverse Harem","Этти":"Ecchi","Айдолы":"Idols","Музыкальный":"Music","Пародия":"Parody","Постапокалипсис":"Post-Apocalyptic","Романтическая комедия":"Romance","Космос":"Space","Вампиры":"Vampire","Демоны":"Demons","Дети":"Kids","CGDCT":"Cute Girls Doing Cute Things","Триллер":"Thriller","Сверхспособности":"Super Power","Реинкарнация":"Reincarnation"};
 const GENRES = ["Все",...Object.keys(GENRE_MAP)];
 const GENRE_RU = Object.fromEntries(Object.entries(GENRE_MAP).map(([ru,en])=>[en,ru]));
+const SHIKI_GENRE_RU = {"Action":"Экшен","Adventure":"Приключения","Comedy":"Комедия","Drama":"Драма","Fantasy":"Фэнтези","Horror":"Ужасы","Mecha":"Меха","Music":"Музыка","Mystery":"Детектив","Psychological":"Психологическое","Romance":"Романтика","Sci-Fi":"Научная фантастика","Slice of Life":"Повседневность","Sports":"Спорт","Supernatural":"Сверхъестественное","Thriller":"Триллер","Military":"Военное","Historical":"Исторический","Kids":"Детское","Work":"Работа","Gourmet":"Гурман","Isekai":"Исэкай","Martial Arts":"Боевые искусства","Magic":"Магия","Samurai":"Самураи","School":"Школа","Shounen":"Сёнэн","Shoujo":"Сёдзё","Seinen":"Сэйнэн","Josei":"Дзёсэй","Harem":"Гарем","Reverse Harem":"Обратный гарем","Ecchi":"Этти","Idols":"Айдолы","Parody":"Пародия","Post-Apocalyptic":"Постапокалипсис","Space":"Космос","Vampire":"Вампиры","Demons":"Демоны","Super Power":"Сверхспособности","Reincarnation":"Реинкарнация","Avant Garde":"Авангард","Award Winning":"Отмеченное наградами","Gourmet":"Гурман","Suspense":"Саспенс","Performing Arts":"Исполнительское искусство","Visual Arts":"Изобразительное искусство","Strategy Game":"Стратегия","Educational":"Обучающее","Hentai":"Хентай","Boys Love":"Любовь между парнями","Girls Love":"Любовь между девушками"};
+function genreRu(g){return SHIKI_GENRE_RU[g]||GENRE_RU[g]||g;}
+function genresFor(a){const source=a.shikimoriGenres?.length?a.shikimoriGenres:(a.genres||[]);return source.map(genreRu);}
+
 let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, searchTimer = null, requestToken = 0;
 let anime = [];
 const saved = new Set(JSON.parse(localStorage.getItem("animora-favorites") || "[]").map(Number));
@@ -109,13 +113,18 @@ async function findRussianTitle(a){
  for(const query of candidates){
   try{
    const url="https://shikimori.one/api/animes?search="+encodeURIComponent(query)+"&limit=5";
-   const response=await fetch(url,{headers:{"Accept":"application/json"}});
+   const response=await fetch(url,{headers:{"Accept":"application/json","User-Agent":"ANIMORA/1.0 (anime catalog)"}});
    if(!response.ok)continue;
    const rows=await response.json();
-   const wanted=normalizeTitle(query);
-   const match=(rows||[]).find(x=>normalizeTitle(x.name)===wanted||normalizeTitle(x.english)===wanted)
-     ||(rows||[]).find(x=>[x.name,x.english].some(t=>t&&normalizeTitle(t)===normalizeTitle(a.title?.english)||t&&normalizeTitle(t)===normalizeTitle(a.title?.romaji)));
-   if(match?.russian){ruTitleCache[key]=match.russian;try{localStorage.setItem(RU_TITLE_CACHE_KEY,JSON.stringify(ruTitleCache));}catch(_){}return match.russian;}
+   const wantedEn=normalizeTitle(a.title?.english||"");
+   const wantedRomaji=normalizeTitle(a.title?.romaji||"");
+   const match=(rows||[]).find(x=>[x.name,x.english].some(t=>t&&(normalizeTitle(t)===wantedEn||normalizeTitle(t)===wantedRomaji)));
+   if(match?.russian){
+    ruTitleCache[key]=match.russian;
+    if(Array.isArray(match.genres))a.shikimoriGenres=match.genres.map(g=>g.russian||g.name).filter(Boolean);
+    try{localStorage.setItem(RU_TITLE_CACHE_KEY,JSON.stringify(ruTitleCache));}catch(_){}
+    return match.russian;
+   }
   }catch(_){}
  }
  return candidates[0]||a.title?.native||"Без названия";
@@ -133,7 +142,7 @@ function descriptionOf(a){return plainText(a.description || "Описание п
 function renderFilters(){filters.innerHTML=GENRES.map(g=>'<button class="chip '+(genre===g?"active":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>').join("");}
 function filteredAnime(){
  const q=search.value.trim().toLowerCase();
- return anime.filter(a=>(genre==="Все"||(a.genres||[]).includes(GENRE_MAP[genre]||genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),(a.genres||[]).map(g=>GENRE_RU[g]||g).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
+ return anime.filter(a=>(genre==="Все"||genresFor(a).includes(genre)||(a.genres||[]).includes(GENRE_MAP[genre]||genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
 }
 function render(){
  const list=filteredAnime();
@@ -141,7 +150,7 @@ function render(){
  document.querySelector("#sectionSubtitle").textContent=view==="favorites"?"Аниме, сохранённые на этом устройстве":list.length+" аниме в загруженных результатах";
  grid.innerHTML=list.length?list.map(a=>{
   const title=titleOf(a), poster=a.coverImage?.large||a.coverImage?.medium||"";
-  return '<article class="anime-card" data-id="'+a.id+'" tabindex="0" aria-label="Открыть '+esc(title)+'"><div class="poster"><div class="poster-fallback">✦</div>'+(poster?'<img loading="lazy" src="'+esc(poster)+'" alt="Постер '+esc(title)+'" onerror="this.style.display=\'none\'">':"")+'<span class="score">★ '+scoreOf(a)+'</span><button class="fav '+(saved.has(a.id)?"saved":"")+'" data-fav="'+a.id+'" aria-label="Добавить в избранное">'+(saved.has(a.id)?"♥":"♡")+'</button><div class="poster-title">'+esc(title)+'</div></div><div class="card-info"><h3>'+esc(title)+'</h3><div class="meta"><span>'+esc(yearOf(a))+' · '+esc(GENRE_RU[(a.genres||[])[0]]||(a.genres||[])[0]||"Аниме")+'</span><span class="tag">'+esc(a.episodes? a.episodes+" сер.":"Аниме")+'</span></div></div></article>';
+  return '<article class="anime-card" data-id="'+a.id+'" tabindex="0" aria-label="Открыть '+esc(title)+'"><div class="poster"><div class="poster-fallback">✦</div>'+(poster?'<img loading="lazy" src="'+esc(poster)+'" alt="Постер '+esc(title)+'" onerror="this.style.display=\'none\'">':"")+'<span class="score">★ '+scoreOf(a)+'</span><button class="fav '+(saved.has(a.id)?"saved":"")+'" data-fav="'+a.id+'" aria-label="Добавить в избранное">'+(saved.has(a.id)?"♥":"♡")+'</button><div class="poster-title">'+esc(title)+'</div></div><div class="card-info"><h3>'+esc(title)+'</h3><div class="meta"><span>'+esc(yearOf(a))+' · '+esc(genreRu((a.genres||[])[0]||"Аниме"))+'</span><span class="tag">'+esc(a.episodes? a.episodes+" сер.":"Аниме")+'</span></div></div></article>';
  }).join(""):'<div class="empty">Ничего не найдено.<br>Попробуй другой запрос или жанр.</div>';
  loadMore.hidden=!(hasNextPage && view!=="favorites" && !search.value.trim());
 }
@@ -200,7 +209,7 @@ function openAnime(id){
  document.querySelector("#modalMeta").textContent="★ "+scoreOf(selected)+" · "+yearOf(selected)+" · "+({"TV":"Сериал","TV_SHORT":"Короткий сериал","MOVIE":"Фильм","OVA":"OVA","ONA":"ONA","SPECIAL":"Спецвыпуск","MUSIC":"Клип"}[selected.format]||"Аниме")+" · "+(selected.episodes?selected.episodes+" серий":"число серий неизвестно");
  document.querySelector("#modalTitle").textContent=titleOf(selected);
  document.querySelector("#modalDesc").textContent="Переводим описание на русский…";
- const tags=(selected.genres||[]).map(g=>GENRE_RU[g]||g).join(" · ");
+ const tags=genresFor(selected).join(" · ");
  const currentId=selected.id;
  const statusRu={"FINISHED":"Завершено","RELEASING":"Выходит","NOT_YET_RELEASED":"Ещё не вышло","CANCELLED":"Отменено","HIATUS":"На паузе"}[selected.status]||"";
  const extra=(tags?"\n\nЖанры: "+tags:"")+(statusRu?"\n\nСтатус: "+statusRu:"");
