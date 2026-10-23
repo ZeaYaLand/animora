@@ -82,6 +82,9 @@ function matchesGenre(a,g=genre){
 }
 
 let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, pendingLoad = null, searchTimer = null, requestToken = 0;
+// Каждый источник ведёт собственную пагинацию: у API разные размеры страниц и число доступных страниц.
+let sourcePages = {AniList:1,Tenrai:1,Kitsu:1,Jikan:1};
+let sourceHasNext = {AniList:true,Tenrai:true,Kitsu:true,Jikan:true};
 let anime = [];
 
 const relatedAnimeCache = new Map();
@@ -352,7 +355,8 @@ async function fetchCompatibleCatalog(base,query,pageNumber,sourceName){
   const rows=Array.isArray(json.data)?json.data:Array.isArray(json.data?.data)?json.data.data:[];
   if(!rows.length&&pageNumber===1)throw new Error(sourceName+" вернул пустой или неизвестный формат данных");
   const pagination=json.pagination||json.meta?.pagination||{};
-  return {media:rows.map(row=>({...mapJikanAnime(row),sourceName})),pageInfo:{currentPage:Number(pagination.current_page||pagination.currentPage||pageNumber),hasNextPage:!!(pagination.has_next_page??pagination.hasNextPage)}};
+  const explicitNext=pagination.has_next_page??pagination.hasNextPage;
+  return {media:rows.map(row=>({...mapJikanAnime(row),sourceName})),pageInfo:{currentPage:Number(pagination.current_page||pagination.currentPage||pageNumber),hasNextPage:explicitNext==null?rows.length>=PAGE_SIZE:!!explicitNext}};
  }catch(e){throw e;}
 }
 async function fetchKitsuCatalog(query,pageNumber){
@@ -467,7 +471,7 @@ async function loadCatalog({reset=true}={}){
  const sourceErrors=[];
  loading=true;loadMore.disabled=true;
  setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме в онлайн-источниках…":"Подключаем онлайн-источники…");
- if(reset){page=1;hasNextPage=false;anime=[];render();}
+ if(reset){page=1;hasNextPage=false;sourcePages={AniList:1,Tenrai:1,Kitsu:1,Jikan:1};sourceHasNext={AniList:true,Tenrai:true,Kitsu:true,Jikan:true};anime=[];render();}
  try{
   if(view==="favorites"){
    const snapshots=Object.values(favoriteRecords).filter(a=>a&&Number.isFinite(Number(a.id)));
@@ -482,19 +486,24 @@ async function loadCatalog({reset=true}={}){
    setStatus(anime.length?"Избранное загружено · "+anime.length+" аниме"+(sourceErrors.length?" · "+sourceErrors.join(" | "):""):"В избранном пока пусто.");
    render();return;
   }
-  const requestedPage=page;
   const sources=[
-   {name:"AniList",run:()=>fetchAniListCatalog(q,requestedPage)},
-   {name:"Tenrai",run:()=>fetchCompatibleCatalog("https://api.tenrai.org/v1",q,requestedPage,"Tenrai")},
-   {name:"Kitsu",run:()=>fetchKitsuCatalog(q,requestedPage)},
-   {name:"Jikan",run:()=>fetchJikanCatalog(q,requestedPage)}
-  ];
+   {name:"AniList",run:()=>fetchAniListCatalog(q,sourcePages.AniList)},
+   {name:"Tenrai",run:()=>fetchCompatibleCatalog("https://api.tenrai.org/v1",q,sourcePages.Tenrai,"Tenrai")},
+   {name:"Kitsu",run:()=>fetchKitsuCatalog(q,sourcePages.Kitsu)},
+   {name:"Jikan",run:()=>fetchJikanCatalog(q,sourcePages.Jikan)}
+  ].filter(source=>sourceHasNext[source.name]!==false);
+  if(!sources.length){hasNextPage=false;setStatus("Все доступные страницы онлайн-источников загружены · "+anime.length+" уникальных аниме");render();return;}
   const settled=await Promise.allSettled(sources.map(source=>source.run()));
   if(token!==requestToken)return;
   const successful=[];
   settled.forEach((result,index)=>{
    if(result.status==="fulfilled"){
     const normalizedResult={...result.value,media:Array.isArray(result.value.media)?result.value.media:[]};
+    const sourceName=sources[index].name;
+    sourcePages[sourceName]=(sourcePages[sourceName]||1)+1;
+    sourceHasNext[sourceName]=typeof normalizedResult.pageInfo?.hasNextPage==="boolean"
+      ? normalizedResult.pageInfo.hasNextPage
+      : normalizedResult.media.length >= (sourceName==="Kitsu"?20:PAGE_SIZE);
     // Third-party APIs do not share AniList's genre/tag filters. Apply compatible genre filtering locally.
     if(genre!=="Все"&&sources[index].name!=="AniList"){
      normalizedResult.media=normalizedResult.media.filter(item=>matchesGenre(item,genre));
@@ -513,7 +522,7 @@ async function loadCatalog({reset=true}={}){
   anime.forEach(a=>{
    if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";
   });
-  hasNextPage=morePages;page=requestedPage+1;
+  hasNextPage=Object.values(sourceHasNext).some(Boolean);page+=1;
   const providerNames=successful.map(x=>x.name);
   setStatus("Каталог загружен · "+anime.length+" уникальных аниме · ответили: "+providerNames.join(", ")+(sourceErrors.length?" · сбои: "+sourceErrors.join(" | "):""));
   render();
