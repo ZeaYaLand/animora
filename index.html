@@ -90,13 +90,43 @@ const RU_TITLES = {
  "Oshi no Ko":"Звёздное дитя","Blue Lock":"Синяя тюрьма: Блю Лок",
  "Bocchi the Rock!":"Одинокий рокер!","Kaguya-sama: Love is War":"Госпожа Кагуя: В любви как на войне"
 };
+const RU_TITLE_CACHE_KEY = "animora-russian-titles-v1";
+let ruTitleCache = {};
+try { ruTitleCache = JSON.parse(localStorage.getItem(RU_TITLE_CACHE_KEY) || "{}"); } catch (_) {}
 function titleOf(a){
  const candidates=[a.title?.english,a.title?.romaji,a.title?.native].filter(Boolean);
  for(const name of candidates)if(RU_TITLES[name])return RU_TITLES[name];
- return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";
+ return a.russianTitle || candidates[0] || "Без названия";
 }
-function searchTitles(a){return [a.title?.english,a.title?.romaji,a.title?.native,titleOf(a)].filter(Boolean).join(" ").toLowerCase();}
-function russianTitle(a){return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";}
+function searchTitles(a){return [a.title?.english,a.title?.romaji,a.title?.native,a.russianTitle,titleOf(a)].filter(Boolean).join(" ").toLowerCase();}
+function russianTitle(a){return titleOf(a);}
+function normalizeTitle(s=""){return String(s).toLowerCase().replace(/[^a-zа-яё0-9]/gi,"");}
+async function findRussianTitle(a){
+ const candidates=[a.title?.english,a.title?.romaji].filter(Boolean);
+ for(const name of candidates)if(RU_TITLES[name])return RU_TITLES[name];
+ const key=String(a.id);
+ if(ruTitleCache[key])return ruTitleCache[key];
+ for(const query of candidates){
+  try{
+   const url="https://shikimori.one/api/animes?search="+encodeURIComponent(query)+"&limit=5";
+   const response=await fetch(url,{headers:{"Accept":"application/json"}});
+   if(!response.ok)continue;
+   const rows=await response.json();
+   const wanted=normalizeTitle(query);
+   const match=(rows||[]).find(x=>normalizeTitle(x.name)===wanted||normalizeTitle(x.english)===wanted)
+     ||(rows||[]).find(x=>[x.name,x.english].some(t=>t&&normalizeTitle(t)===normalizeTitle(a.title?.english)||t&&normalizeTitle(t)===normalizeTitle(a.title?.romaji)));
+   if(match?.russian){ruTitleCache[key]=match.russian;try{localStorage.setItem(RU_TITLE_CACHE_KEY,JSON.stringify(ruTitleCache));}catch(_){}return match.russian;}
+  }catch(_){}
+ }
+ return candidates[0]||a.title?.native||"Без названия";
+}
+async function enrichRussianTitles(items){
+ const queue=items.filter(a=>!a.russianTitle&&!RU_TITLES[a.title?.english]&&!RU_TITLES[a.title?.romaji]&&!ruTitleCache[String(a.id)]);
+ let index=0;
+ async function worker(){while(index<queue.length){const a=queue[index++];a.russianTitle=await findRussianTitle(a);if(anime.some(x=>x.id===a.id))render();}}
+ await Promise.all(Array.from({length:3},worker));
+ items.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
+}
 function yearOf(a){return a.seasonYear || (a.startDate?.year) || "Год неизвестен";}
 function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "—";}
 function descriptionOf(a){return plainText(a.description || "Описание пока отсутствует.");}
@@ -144,9 +174,11 @@ async function loadCatalog({reset=true}={}){
   const result=data.Page;
   const incoming=result.media||[];
   anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
+  anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
   setStatus("Каталог загружен · "+anime.length+" результатов на этой странице");
   render();
+  enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
   if(token!==requestToken)return;
   setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.");
