@@ -424,88 +424,76 @@ function mergeCatalogRecords(primary,secondary){
  }
  return result;
 }
+async function fetchAniListCatalog(query,pageNumber){
+ const selectedGenre=GENRE_MAP[genre]||genre;
+ const isAniListGenre=ANILIST_GENRES.has(selectedGenre);
+ const tagName=GENRE_TAG_MAP[genre]||"";
+ const tagOnly=new Set(["Романтическая комедия","Демоны","CGDCT"]);
+ const useTag=!!tagName&&(!isAniListGenre||tagOnly.has(genre));
+ const variables={page:pageNumber,perPage:PAGE_SIZE,search:query||null,genres:genre==="Все"||useTag||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||!useTag?null:[tagName]};
+ const data=await apiRequest(LIST_QUERY,variables);
+ if(!data?.Page||!Array.isArray(data.Page.media))throw new Error("AniList вернул неожиданный формат");
+ return {...data.Page,media:data.Page.media.map(item=>({...item,sourceName:"AniList"}))};
+}
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
- const token=++requestToken, q=search.value.trim();
- const primaryErrors=[];
+ const token=++requestToken,q=search.value.trim();
  const sourceErrors=[];
- // Онлайн-каталог: все результаты получаем из внешних API.
- loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
+ loading=true;loadMore.disabled=true;
+ setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме в онлайн-источниках…":"Подключаем онлайн-источники…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
-  let data, result;
   if(view==="favorites"){
    const ids=[...saved];
    if(!ids.length){anime=[];hasNextPage=false;setStatus("В избранном пока пусто.");render();return;}
-   data=await apiRequest(FAVORITES_QUERY,{ids});
-   result={media:data.Page.media||[],pageInfo:{hasNextPage:false,currentPage:1}};
-  }else{
-   try{
-    setStatus("Подключаем основной каталог Tenrai…");
-    result=await fetchCompatibleCatalog("https://api.tenrai.org/v1",q,page,"Tenrai");
-   }catch(tenraiError){
-    primaryErrors.push("Tenrai: "+(tenraiError?.message||"ошибка запроса"));
-    setStatus("Tenrai недоступен · подключаем AniList…");
-    const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const tagOnly=new Set(["Романтическая комедия","Демоны","CGDCT"]);const useTag=!!tagName&&(!isAniListGenre||tagOnly.has(genre));const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||useTag||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||!useTag?null:[tagName]};
-    try{data=await apiRequest(LIST_QUERY,variables);result=data.Page;}
-    catch(anilistError){primaryErrors.push("AniList: "+(anilistError?.message||"ошибка запроса"));throw anilistError;}
-   }
-   // Merge unique anime from Kitsu and Jikan into the current page.
-   const extraSources=[{name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},{name:"Jikan",run:()=>fetchJikanCatalog(q,page)}];
-   const extraResults=await Promise.allSettled(extraSources.map(source=>source.run()));
-   const merged=[...(result.media||[])];extraResults.forEach((settled,i)=>{if(settled.status==="rejected")sourceErrors.push(extraSources[i].name+": "+(settled.reason?.message||"ошибка запроса"));});
-   const normalizeKey=a=>String(a.title?.english||a.title?.romaji||a.title?.native||"").toLowerCase().replace(/[^a-zа-яё0-9]/gi,"");
-   const known=new Set(merged.map(normalizeKey).filter(Boolean));
-   for(const settled of extraResults){
-    if(settled.status!=="fulfilled")continue;
-    for(const item of (settled.value.media||[])){
-     const key=normalizeKey(item);
-     if(!key||known.has(key))continue;
-     known.add(key);merged.push(item);
-    }
-   }
-   result={...result,media:merged};
+   const data=await apiRequest(FAVORITES_QUERY,{ids});
+   const media=(data?.Page?.media||[]).map(item=>({...item,sourceName:"AniList"}));
+   if(token!==requestToken)return;
+   anime=reset?media:anime.concat(media.filter(a=>!anime.some(old=>old.id===a.id)));
+   hasNextPage=false;page=2;
+   setStatus("Избранное загружено · "+anime.length+" аниме");render();return;
   }
+  const requestedPage=page;
+  const sources=[
+   {name:"AniList",run:()=>fetchAniListCatalog(q,requestedPage)},
+   {name:"Tenrai",run:()=>fetchCompatibleCatalog("https://api.tenrai.org/v1",q,requestedPage,"Tenrai")},
+   {name:"Kitsu",run:()=>fetchKitsuCatalog(q,requestedPage)},
+   {name:"Jikan",run:()=>fetchJikanCatalog(q,requestedPage)}
+  ];
+  const settled=await Promise.allSettled(sources.map(source=>source.run()));
   if(token!==requestToken)return;
-  const incoming=result.media||[];
-  anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
-  anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
-  hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
-   setStatus(view==="favorites"?"Избранное загружено · "+anime.length+" аниме":"Каталог загружен · "+anime.length+" уникальных результатов · источники: "+[...new Set(incoming.map(a=>a.sourceName||"AniList"))].join(", ")+(sourceErrors.length?" · источники недоступны: "+sourceErrors.join("; "):"")+(genre!=="Все"&&((!ANILIST_GENRES.has(GENRE_MAP[genre]||genre))||["Романтическая комедия","Демоны","CGDCT"].includes(genre))?" · фильтр по тематике":""));
+  const successful=[];
+  settled.forEach((result,index)=>{
+   if(result.status==="fulfilled"){
+    const media=Array.isArray(result.value.media)?result.value.media:[];
+    if(media.length||result.value.pageInfo?.hasNextPage)successful.push({name:sources[index].name,result:result.value});
+    else sourceErrors.push(sources[index].name+": источник ответил, но не вернул записи");
+   }else sourceErrors.push(sources[index].name+": "+(result.reason?.message||"ошибка запроса"));
+  });
+  if(!successful.length)throw new Error("Все онлайн-источники не вернули каталог. "+sourceErrors.join(" | "));
+  let combined=[],morePages=false;
+  successful.forEach(({result})=>{
+   combined=mergeCatalogRecords(combined,result.media||[]);
+   morePages=morePages||!!result.pageInfo?.hasNextPage;
+  });
+  anime=reset?combined:mergeCatalogRecords(anime,combined);
+  anime.forEach(a=>{
+   if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";
+  });
+  hasNextPage=morePages;page=requestedPage+1;
+  const providerNames=successful.map(x=>x.name);
+  setStatus("Каталог загружен · "+anime.length+" уникальных аниме · ответили: "+providerNames.join(", ")+(sourceErrors.length?" · сбои: "+sourceErrors.join(" | "):""));
   render();
-  enrichRussianTitles(incoming).catch(()=>{});
+  enrichRussianTitles(anime).catch(()=>{});
  }catch(error){
   if(token!==requestToken)return;
-  let restored=false;
-  if(view!=="favorites"){
-   const failures=[...primaryErrors];
-   const sources=[
-    {name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},
-    {name:"Jikan",run:()=>fetchJikanCatalog(q,page)}
-   ];
-   for(const source of sources){
-    try{
-     setStatus("Источник AniList/Jikan недоступен · проверяем "+source.name+"…");
-     const backup=await source.run();
-     if(token!==requestToken)return;
-     const incoming=backup.media||[];
-     if(!incoming.length)throw new Error(source.name+" не вернул результатов");
-     anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
-     anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
-     hasNextPage=backup.pageInfo.hasNextPage;page=backup.pageInfo.currentPage+1;
-     setStatus("Каталог загружен · источник: "+source.name+" · "+anime.length+" аниме на экране");
-     render();restored=true;break;
-    }catch(sourceError){failures.push(source.name+": "+(sourceError?.message||"ошибка запроса"));}
-   }
-   if(!restored){
-    setStatus("Не удалось загрузить онлайн-каталог. Ошибки источников: "+failures.join(" | "));
-    if(!anime.length)grid.innerHTML='<div class="empty">Все проверенные онлайн-источники не ответили.<br>'+esc(failures.join(" · "))+'<br><button class="btn" id="retry">Повторить загрузку</button></div>';
-   }
-  }else{
-   setStatus("Не удалось загрузить избранное из AniList: "+(error?.message||"неизвестная ошибка"));
-  }
+  setStatus("Не удалось загрузить онлайн-каталог: "+(error?.message||"неизвестная ошибка"));
+  if(!anime.length)grid.innerHTML='<div class="empty">Онлайн-каталог сейчас недоступен.<br>'+esc(error?.message||"Проверьте соединение и повторите попытку.")+'<br><button class="btn" id="retry">Повторить загрузку</button></div>';
  }finally{
-  if(token===requestToken){loading=false;loadMore.disabled=false;if(pendingLoad){const next=pendingLoad;pendingLoad=null;loadCatalog(next);}}
+  if(token===requestToken){
+   loading=false;loadMore.disabled=false;
+   if(pendingLoad){const next=pendingLoad;pendingLoad=null;loadCatalog(next);}
+  }
  }
 }
 async function translateDescription(text){
