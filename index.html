@@ -45,7 +45,9 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
 <script>
 const API_URL = "https://graphql.anilist.co";
 const PAGE_SIZE = 24;
-const GENRES = ["Все","Экшен","Приключения","Комедия","Драма","Фэнтези","Ужасы","Меха","Музыка","Детектив","Психологическое","Романтика","Научная фантастика","Повседневность","Спорт","Сверхъестественное","Триллер"];
+const GENRE_MAP = {"Экшен":"Action","Приключения":"Adventure","Комедия":"Comedy","Драма":"Drama","Фэнтези":"Fantasy","Ужасы":"Horror","Меха":"Mecha","Музыка":"Music","Детектив":"Mystery","Психологическое":"Psychological","Романтика":"Romance","Научная фантастика":"Sci-Fi","Повседневность":"Slice of Life","Спорт":"Sports","Сверхъестественное":"Supernatural","Триллер":"Thriller"};
+const GENRES = ["Все",...Object.keys(GENRE_MAP)];
+const GENRE_RU = Object.fromEntries(Object.entries(GENRE_MAP).map(([ru,en])=>[en,ru]));
 let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, searchTimer = null, requestToken = 0;
 let anime = [];
 const saved = new Set(JSON.parse(localStorage.getItem("animora-favorites") || "[]").map(Number));
@@ -69,7 +71,7 @@ function render(){
  document.querySelector("#sectionSubtitle").textContent=view==="favorites"?"Тайтлы, сохранённые на этом устройстве":list.length+" аниме в загруженных результатах";
  grid.innerHTML=list.length?list.map(a=>{
   const title=titleOf(a), poster=a.coverImage?.large||a.coverImage?.medium||"";
-  return '<article class="anime-card" data-id="'+a.id+'" tabindex="0" aria-label="Открыть '+esc(title)+'"><div class="poster"><div class="poster-fallback">✦</div>'+(poster?'<img loading="lazy" src="'+esc(poster)+'" alt="Постер '+esc(title)+'" onerror="this.style.display=\'none\'">':"")+'<span class="score">★ '+scoreOf(a)+'</span><button class="fav '+(saved.has(a.id)?"saved":"")+'" data-fav="'+a.id+'" aria-label="Добавить в избранное">'+(saved.has(a.id)?"♥":"♡")+'</button><div class="poster-title">'+esc(title)+'</div></div><div class="card-info"><h3>'+esc(title)+'</h3><div class="meta"><span>'+esc(yearOf(a))+' · '+esc((a.genres||[])[0]||"Аниме")+'</span><span class="tag">'+esc(a.episodes? a.episodes+" сер.":"Аниме")+'</span></div></div></article>';
+  return '<article class="anime-card" data-id="'+a.id+'" tabindex="0" aria-label="Открыть '+esc(title)+'"><div class="poster"><div class="poster-fallback">✦</div>'+(poster?'<img loading="lazy" src="'+esc(poster)+'" alt="Постер '+esc(title)+'" onerror="this.style.display=\'none\'">':"")+'<span class="score">★ '+scoreOf(a)+'</span><button class="fav '+(saved.has(a.id)?"saved":"")+'" data-fav="'+a.id+'" aria-label="Добавить в избранное">'+(saved.has(a.id)?"♥":"♡")+'</button><div class="poster-title">'+esc(title)+'</div></div><div class="card-info"><h3>'+esc(title)+'</h3><div class="meta"><span>'+esc(yearOf(a))+' · '+esc(GENRE_RU[(a.genres||[])[0]]||(a.genres||[])[0]||"Аниме")+'</span><span class="tag">'+esc(a.episodes? a.episodes+" сер.":"Аниме")+'</span></div></div></article>';
  }).join(""):'<div class="empty">Ничего не найдено.<br>Попробуй другой запрос или жанр.</div>';
  loadMore.hidden=!(hasNextPage && view!=="favorites" && !search.value.trim());
 }
@@ -96,7 +98,7 @@ async function loadCatalog({reset=true}={}){
  loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог AniList…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
-  const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"?null:[genre]};
+  const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"?null:[GENRE_MAP[genre]||genre]};
   const data=await apiRequest(LIST_QUERY,variables);
   if(token!==requestToken)return;
   const result=data.Page;
@@ -121,7 +123,7 @@ function openAnime(id){
  document.querySelector("#modalMeta").textContent="★ "+scoreOf(selected)+" · "+yearOf(selected)+" · "+(selected.format||"АНИМЕ")+" · "+(selected.episodes?selected.episodes+" серий":"серии неизвестны");
  document.querySelector("#modalTitle").textContent=titleOf(selected);
  document.querySelector("#modalDesc").textContent=descriptionOf(selected);
- const tags=(selected.genres||[]).join(" · ");
+ const tags=(selected.genres||[]).map(g=>GENRE_RU[g]||g).join(" · ");
  document.querySelector("#modalDesc").textContent=(descriptionOf(selected))+(tags?"\n\nЖанры: "+tags:"")+(selected.status?"\n\nСтатус: "+selected.status:"");
  document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";
  document.querySelector("#modal").classList.add("open");
@@ -141,7 +143,7 @@ document.querySelector("#closeModal").addEventListener("click",()=>document.quer
 document.querySelector("#modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelector("#modal").classList.remove("open");});
 function setView(v){view=v;render();document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===v));document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});}
-document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>{setView(b.dataset.view);if(v!=="favorites"&&anime.length===0)loadCatalog({reset:true});}));
+document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>{setView(b.dataset.view);if(b.dataset.view!=="favorites"&&anime.length===0)loadCatalog({reset:true});}));
 document.querySelector("#showFav").addEventListener("click",()=>setView("favorites"));
 document.querySelector("#explore").addEventListener("click",()=>{setView("all");document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});if(!anime.length)loadCatalog({reset:true});});
 renderFilters();render();loadCatalog({reset:true});
