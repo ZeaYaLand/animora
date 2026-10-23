@@ -261,6 +261,35 @@ const starter=[
  [900000008,"Волейбол!!","Haikyuu!!",["Спорт","Комедия","Школа"],"Увлечённый волейболом школьник стремится стать сильным игроком и приводит команду к новым испытаниям."]
 ];
 function makeStarterCatalog(){return starter.map(x=>({id:x[0],title:{english:x[2],romaji:x[2],native:""},russianTitle:x[1],coverImage:{large:"",medium:""},description:x[4],genres:x[3],tags:[],averageScore:null,episodes:null,seasonYear:null,startDate:{year:null},format:"TV",status:"FINISHED",airingSchedule:{nodes:[]},sourceName:"ANIMORA"}));}
+function mapJikanAnime(x){
+ const year=x.year||x.aired?.prop?.from?.year||null;
+ return {
+  id:100000000+(Number(x.mal_id)||0),
+  title:{english:x.title_english||x.title||"",romaji:x.title||"",native:x.title_japanese||""},
+  russianTitle:x.title||x.title_english||x.title_japanese||"Без названия",
+  coverImage:{large:x.images?.webp?.large_image_url||x.images?.jpg?.large_image_url||"",medium:x.images?.webp?.image_url||x.images?.jpg?.image_url||""},
+  description:x.synopsis||"Описание пока отсутствует.",
+  genres:(x.genres||[]).map(g=>g.name),tags:[],averageScore:x.score?Math.round(x.score*10):null,
+  episodes:x.episodes||null,seasonYear:year,startDate:{year},
+  format:x.type==="TV"?"TV":x.type==="Movie"?"MOVIE":x.type==="OVA"?"OVA":x.type==="ONA"?"ONA":x.type==="Special"?"SPECIAL":"TV",
+  status:x.status==="Currently Airing"?"RELEASING":x.status==="Finished Airing"?"FINISHED":"NOT_YET_RELEASED",
+  airingSchedule:{nodes:[]},sourceName:"Jikan"
+ };
+}
+async function fetchJikanCatalog(query,pageNumber){
+ const endpoint=query
+  ?"https://api.jikan.moe/v4/anime?q="+encodeURIComponent(query)+"&page="+pageNumber+"&limit="+PAGE_SIZE
+  :"https://api.jikan.moe/v4/anime?page="+pageNumber+"&limit="+PAGE_SIZE+"&order_by=popularity&sort=desc";
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);
+ try{
+  const response=await fetch(endpoint,{headers:{Accept:"application/json"},signal:controller.signal});
+  if(!response.ok)throw new Error("Jikan API: HTTP "+response.status);
+  const json=await response.json();
+  if(!Array.isArray(json.data))throw new Error("Jikan API вернул неверный формат данных");
+  return {media:json.data.map(mapJikanAnime),pageInfo:{currentPage:Number(json.pagination?.current_page||pageNumber),hasNextPage:!!json.pagination?.has_next_page}};
+ }catch(error){if(error.name==="AbortError")throw new Error("Jikan API не ответил за 12 секунд");throw error;}
+ finally{clearTimeout(timer);}
+}
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
@@ -274,9 +303,15 @@ async function loadCatalog({reset=true}={}){
    data=await apiRequest(FAVORITES_QUERY,{ids});
    result={media:data.Page.media||[],pageInfo:{hasNextPage:false,currentPage:1}};
   }else{
-   const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const tagOnly=new Set(["Романтическая комедия","Демоны","CGDCT"]);const useTag=!!tagName&&(!isAniListGenre||tagOnly.has(genre));const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||useTag||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||!useTag?null:[tagName]};
-   data=await apiRequest(LIST_QUERY,variables);
-   result=data.Page;
+   try{
+    result=await fetchJikanCatalog(q,page);
+    setStatus("Загружаем онлайн-каталог Jikan…");
+   }catch(jikanError){
+    setStatus("Резервный источник недоступен · подключаем AniList…");
+    const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const tagOnly=new Set(["Романтическая комедия","Демоны","CGDCT"]);const useTag=!!tagName&&(!isAniListGenre||tagOnly.has(genre));const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||useTag||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||!useTag?null:[tagName]};
+    data=await apiRequest(LIST_QUERY,variables);
+    result=data.Page;
+   }
   }
   if(token!==requestToken)return;
   const incoming=result.media||[];
@@ -301,19 +336,7 @@ async function loadCatalog({reset=true}={}){
     finally{clearTimeout(backupTimeout);}
     if(!backupResponse.ok)throw new Error("Резервный каталог ответил с кодом "+backupResponse.status);
     const backup=await backupResponse.json();
-    const incoming=(backup.data||[]).map(x=>({
-     id:100000000+(Number(x.mal_id)||Math.floor(Math.random()*10000000)),
-     title:{english:x.title_english||x.title||"",romaji:x.title||"",native:x.title_japanese||""},
-     russianTitle:x.title||x.title_english||x.title_japanese||"Без названия",
-     coverImage:{large:x.images?.webp?.large_image_url||x.images?.jpg?.large_image_url||"",medium:x.images?.webp?.image_url||x.images?.jpg?.image_url||""},
-     description:x.synopsis||"Описание пока отсутствует.",
-     genres:(x.genres||[]).map(g=>g.name),tags:[],averageScore:x.score?Math.round(x.score*10):null,
-     episodes:x.episodes||null,seasonYear:x.year||x.aired?.prop?.from?.year||null,
-     startDate:{year:x.year||x.aired?.prop?.from?.year||null},
-     format:x.type==="TV"?"TV":x.type==="Movie"?"MOVIE":x.type==="OVA"?"OVA":x.type==="ONA"?"ONA":x.type==="Special"?"SPECIAL":"TV",
-     status:x.status==="Currently Airing"?"RELEASING":x.status==="Finished Airing"?"FINISHED":"NOT_YET_RELEASED",
-     airingSchedule:{nodes:[]},sourceName:"Jikan"
-    }));
+    const incoming=(backup.data||[]).map(mapJikanAnime);
     if(token!==requestToken)return;
     anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
     hasNextPage=!!backup.pagination?.has_next_page;page=Number(backup.pagination?.current_page||page)+1;
