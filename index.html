@@ -73,7 +73,29 @@ const statusEl = document.querySelector("#status"), loadMore = document.querySel
 function persist(){localStorage.setItem("animora-favorites", JSON.stringify([...saved]));}
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function plainText(s=""){const t=document.createElement("div");t.innerHTML=s;return (t.textContent||t.innerText||"").trim();}
-function titleOf(a){return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";}
+const RU_TITLES = {
+ "Shingeki no Kyojin":"Атака титанов","Attack on Titan":"Атака титанов",
+ "Kimetsu no Yaiba":"Истребитель демонов","Demon Slayer: Kimetsu no Yaiba":"Истребитель демонов",
+ "Jujutsu Kaisen":"Магическая битва","Death Note":"Тетрадь смерти","Naruto":"Наруто",
+ "Naruto: Shippuuden":"Наруто: Ураганные хроники","One Piece":"Ван-Пис",
+ "Boku no Hero Academia":"Моя геройская академия","My Hero Academia":"Моя геройская академия",
+ "Sousou no Frieren":"Провожающая в последний путь Фрирен","Frieren: Beyond Journey's End":"Провожающая в последний путь Фрирен",
+ "Spy x Family":"Семья шпиона","Chainsaw Man":"Человек-бензопила",
+ "Fullmetal Alchemist: Brotherhood":"Стальной алхимик: Братство","Steins;Gate":"Врата Штейна",
+ "Hunter x Hunter":"Охотник х Охотник","Tokyo Ghoul":"Токийский гуль",
+ "Sword Art Online":"Мастера меча онлайн","Your Name.":"Твоё имя","Kimi no Na wa.":"Твоё имя",
+ "Koe no Katachi":"Форма голоса","A Silent Voice":"Форма голоса","Violet Evergarden":"Вайолет Эвергарден",
+ "Mob Psycho 100":"Моб Психо 100","One Punch Man":"Ванпанчмен","Haikyuu!!":"Волейбол!!",
+ "The Apothecary Diaries":"Монолог фармацевта","Kusuriya no Hitorigoto":"Монолог фармацевта",
+ "Oshi no Ko":"Звёздное дитя","Blue Lock":"Синяя тюрьма: Блю Лок",
+ "Bocchi the Rock!":"Одинокий рокер!","Kaguya-sama: Love is War":"Госпожа Кагуя: В любви как на войне"
+};
+function titleOf(a){
+ const candidates=[a.title?.english,a.title?.romaji,a.title?.native].filter(Boolean);
+ for(const name of candidates)if(RU_TITLES[name])return RU_TITLES[name];
+ return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";
+}
+function searchTitles(a){return [a.title?.english,a.title?.romaji,a.title?.native,titleOf(a)].filter(Boolean).join(" ").toLowerCase();}
 function russianTitle(a){return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";}
 function yearOf(a){return a.seasonYear || (a.startDate?.year) || "Год неизвестен";}
 function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "—";}
@@ -81,7 +103,7 @@ function descriptionOf(a){return plainText(a.description || "Описание п
 function renderFilters(){filters.innerHTML=GENRES.map(g=>'<button class="chip '+(genre===g?"active":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>').join("");}
 function filteredAnime(){
  const q=search.value.trim().toLowerCase();
- return anime.filter(a=>(genre==="Все"||(a.genres||[]).includes(GENRE_MAP[genre]||genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[titleOf(a),a.title?.romaji,a.title?.english,a.title?.native,(a.genres||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
+ return anime.filter(a=>(genre==="Все"||(a.genres||[]).includes(GENRE_MAP[genre]||genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),(a.genres||[]).map(g=>GENRE_RU[g]||g).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
 }
 function render(){
  const list=filteredAnime();
