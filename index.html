@@ -235,20 +235,32 @@ function onlineHttpError(response,sourceName){
  if(status===503||status===502||status===504)return new Error(sourceName+" временно недоступен (HTTP "+status+")");
  return new Error(sourceName+" ответил с кодом "+status);
 }
+async function fetchOnlineWithRetry(url,options,sourceName,timeoutMs=8000){
+ for(let attempt=0;attempt<2;attempt++){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+   const response=await fetch(url,{...options,signal:controller.signal});
+   if(response.ok)return response;
+   const retryable=[429,502,503,504].includes(response.status);
+   if(!retryable||attempt===1)throw onlineHttpError(response,sourceName);
+   const retryAfter=Number(response.headers?.get("Retry-After"));
+   const delay=Number.isFinite(retryAfter)&&retryAfter>0?Math.min(retryAfter*1000,8000):1000;
+   await new Promise(resolve=>setTimeout(resolve,delay));
+  }catch(error){
+   if(error.name==="AbortError")throw new Error(sourceName+" не ответил за "+Math.round(timeoutMs/1000)+" секунд");
+   if(attempt===1||error.message?.startsWith(sourceName+" ответил")||error.message?.startsWith(sourceName+" ограничил")||error.message?.startsWith(sourceName+" временно"))throw error;
+   await new Promise(resolve=>setTimeout(resolve,700));
+  }finally{clearTimeout(timer);}
+ }
+ throw new Error(sourceName+" не ответил");
+}
 async function apiRequest(query, variables){
- const controller=new AbortController();
- const timeout=setTimeout(()=>controller.abort(),8000);
- try{
-  const response=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query,variables}),signal:controller.signal});
-  if(!response.ok) throw onlineHttpError(response,"AniList");
-  const json=await response.json();
-  if(json.errors?.length) throw new Error(json.errors[0].message||"Ошибка GraphQL");
-  if(!json.data) throw new Error("AniList не вернул данные");
-  return json.data;
- }catch(error){
-  if(error.name==="AbortError")throw new Error("AniList не ответил за 8 секунд");
-  throw error;
- }finally{clearTimeout(timeout);}
+ const response=await fetchOnlineWithRetry(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query,variables})},"AniList",8000);
+ const json=await response.json();
+ if(json.errors?.length)throw new Error(json.errors[0].message||"Ошибка GraphQL");
+ if(!json.data)throw new Error("AniList не вернул данные");
+ return json.data;
 }
 const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],$tags:[String]) {
  Page(page:$page,perPage:$perPage) {
@@ -354,15 +366,10 @@ async function fetchJikanCatalog(query,pageNumber){
  const endpoint=query
   ?"https://api.jikan.moe/v4/anime?q="+encodeURIComponent(query)+"&page="+pageNumber+"&limit="+PAGE_SIZE
   :"https://api.jikan.moe/v4/anime?page="+pageNumber+"&limit="+PAGE_SIZE+"&order_by=popularity&sort=desc";
- const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),7000);
- try{
-  const response=await fetch(endpoint,{headers:{Accept:"application/json"},signal:controller.signal});
-  if(!response.ok)throw onlineHttpError(response,"Jikan API");
-  const json=await response.json();
-  if(!Array.isArray(json.data))throw new Error("Jikan API вернул неверный формат данных");
-  return {media:json.data.map(mapJikanAnime),pageInfo:{currentPage:Number(json.pagination?.current_page||pageNumber),hasNextPage:!!json.pagination?.has_next_page}};
- }catch(error){if(error.name==="AbortError")throw new Error("Jikan API не ответил за 7 секунд");throw error;}
- finally{clearTimeout(timer);}
+ const response=await fetchOnlineWithRetry(endpoint,{headers:{Accept:"application/json"}},"Jikan API",7000);
+ const json=await response.json();
+ if(!Array.isArray(json.data))throw new Error("Jikan API вернул неверный формат данных");
+ return {media:json.data.map(mapJikanAnime),pageInfo:{currentPage:Number(json.pagination?.current_page||pageNumber),hasNextPage:!!json.pagination?.has_next_page}};
 }
 const onlineSupplementJobs=new Map();
 const onlineSupplementDone=new Set();
