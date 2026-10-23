@@ -230,10 +230,14 @@ function setStatus(msg){statusEl.textContent=msg;}
 function onlineHttpError(response,sourceName){
  const status=response.status;
  const retryAfter=response.headers?.get("Retry-After");
- if(status===429)return new Error(sourceName+" ограничил частоту запросов (HTTP 429)"+(retryAfter?"; повторите через "+retryAfter+" сек.":"; подождите немного и повторите попытку"));
- if(status===403)return new Error(sourceName+" вернул HTTP 403: источник может временно ограничивать доступ или блокировать запросы; это не обязательно проблема Wi-Fi");
- if(status===503||status===502||status===504)return new Error(sourceName+" временно недоступен (HTTP "+status+")");
- return new Error(sourceName+" ответил с кодом "+status);
+ let message;
+ if(status===429)message=sourceName+" ограничил частоту запросов (HTTP 429)"+(retryAfter?"; повторите через "+retryAfter+" сек.":"; подождите немного и повторите попытку");
+ else if(status===403)message=sourceName+" вернул HTTP 403: источник может временно ограничивать доступ или блокировать запросы; это не обязательно проблема Wi-Fi";
+ else if(status===503||status===502||status===504)message=sourceName+" временно недоступен (HTTP "+status+")";
+ else message=sourceName+" ответил с кодом "+status;
+ const error=new Error(message);
+ error.status=status;
+ return error;
 }
 async function fetchOnlineWithRetry(url,options,sourceName,timeoutMs=8000){
  for(let attempt=0;attempt<2;attempt++){
@@ -248,9 +252,13 @@ async function fetchOnlineWithRetry(url,options,sourceName,timeoutMs=8000){
    const delay=Number.isFinite(retryAfter)&&retryAfter>0?Math.min(retryAfter*1000,8000):1000;
    await new Promise(resolve=>setTimeout(resolve,delay));
   }catch(error){
-   if(error.name==="AbortError")throw new Error(sourceName+" не ответил за "+Math.round(timeoutMs/1000)+" секунд");
-   if(attempt===1||error.message?.startsWith(sourceName+" ответил")||error.message?.startsWith(sourceName+" ограничил")||error.message?.startsWith(sourceName+" временно"))throw error;
-   await new Promise(resolve=>setTimeout(resolve,700));
+   if(error.status&&!([429,502,503,504].includes(error.status)&&attempt===0))throw error;
+   if(attempt===1){
+    if(error.name==="AbortError")throw new Error(sourceName+" не ответил за "+Math.round(timeoutMs/1000)+" секунд");
+    throw error;
+   }
+   const delay=error.status===429?1000:700;
+   await new Promise(resolve=>setTimeout(resolve,delay));
   }finally{clearTimeout(timer);}
  }
  throw new Error(sourceName+" не ответил");
