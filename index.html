@@ -72,7 +72,7 @@ const SHIKI_GENRE_RU = {"Action":"Экшен","Adventure":"Приключени�
 function genreRu(g){return SHIKI_GENRE_RU[g]||GENRE_RU[g]||g;}
 function genresFor(a){const source=a.shikimoriGenres?.length?a.shikimoriGenres:(a.genres||[]);return source.map(genreRu);}
 
-let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, searchTimer = null, requestToken = 0;
+let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, pendingLoad = null, searchTimer = null, requestToken = 0;
 let anime = [];
 const saved = new Set(JSON.parse(localStorage.getItem("animora-favorites") || "[]").map(Number));
 const grid = document.querySelector("#grid"), filters = document.querySelector("#filters"), search = document.querySelector("#search");
@@ -175,7 +175,7 @@ const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],
  }
 }`;
 async function loadCatalog({reset=true}={}){
- if(loading)return;
+ if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
  loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
@@ -196,7 +196,7 @@ async function loadCatalog({reset=true}={}){
   setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.");
   if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к AniList.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
  }finally{
-  if(token===requestToken){loading=false;loadMore.disabled=false;}
+  if(token===requestToken){loading=false;loadMore.disabled=false;if(pendingLoad){const next=pendingLoad;pendingLoad=null;loadCatalog(next);}}
  }
 }
 async function translateDescription(text){
