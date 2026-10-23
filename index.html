@@ -539,26 +539,7 @@ async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
  const primaryErrors=[];
- if(view!=="favorites" || saved.size){
-  try{
-   setStatus("Загружаем собственный каталог ANIMORA…");
-   const all=await loadLocalCatalog();
-   if(token!==requestToken)return;
-   const filtered=filterLocalCatalog(all);
-   const start=reset?0:(page-1)*PAGE_SIZE;
-   if(reset)page=1;
-   const batch=filtered.slice(start,start+PAGE_SIZE);
-   anime=reset?batch:anime.concat(batch);
-   hasNextPage=start+PAGE_SIZE<filtered.length;
-   page=Math.floor(start/PAGE_SIZE)+2;
-   batch.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
-   setStatus("Собственная база ANIMORA · "+filtered.length.toLocaleString("ru-RU")+" результатов");
-   render();
-   enrichRussianTitles(batch).catch(()=>{});
-   supplementLocalCatalog(q).catch(()=>{});
-   return;
-  }catch(localError){console.warn("Local catalog unavailable; using online fallback:",localError);}
- }
+ // Онлайн-first: не блокируем загрузку большим локальным JSON-каталогом.
  loading=true;loadMore.disabled=true;setStatus(view==="favorites"?"Загружаем избранное…":q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;if(view==="favorites"||q||genre!=="Все"){anime=[];render();}else if(!anime.length){anime=makeStarterCatalog();render();setStatus("Показываем стартовую подборку · загружаем полный каталог…");}}
  try{
