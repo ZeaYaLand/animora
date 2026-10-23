@@ -15,7 +15,7 @@ header{position:sticky;top:0;z-index:10;background:#090710eF;backdrop-filter:blu
 .hero{padding:42px 0 30px}.hero-card{min-height:330px;border:1px solid #553078;border-radius:24px;overflow:hidden;position:relative;background:linear-gradient(90deg,#120b20 0%,#180d29dd 46%,#160b22aa 100%),radial-gradient(circle at 78% 20%,#a855f7 0,transparent 24%),linear-gradient(135deg,#32104b,#090710 65%);display:flex;align-items:center;padding:clamp(24px,5vw,58px)}.hero-card:after{content:"✦";position:absolute;right:9%;top:4%;font-size:190px;color:#c084fc;opacity:.16;text-shadow:0 0 80px #a855f7}.hero-copy{position:relative;z-index:1;max-width:570px}.eyebrow{display:inline-flex;padding:7px 11px;border:1px solid #6b3a8b;border-radius:99px;color:#d8b4fe;font-size:12px;font-weight:800;letter-spacing:1.2px}.hero h1{font-size:clamp(34px,5vw,60px);line-height:1.04;margin:18px 0 14px;letter-spacing:-1.7px}.hero h1 em{font-style:normal;color:#c084fc}.hero p{max-width:490px;color:#c8bfd8;line-height:1.65;margin:0 0 22px}.actions{display:flex;gap:10px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#21172e;color:white;padding:12px 17px;border-radius:12px;font-weight:800}.btn.primary{background:linear-gradient(135deg,#c084fc,#7c3aed);border:0;color:#150a21;box-shadow:0 8px 28px #7c3aed44}.btn:hover{filter:brightness(1.12)}
 .stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:23px;color:var(--muted);font-size:13px}.stats strong{color:#fff}
 main{padding-bottom:60px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:18px 0}.section-head h2{font-size:24px;margin:0}.section-head p{margin:6px 0 0;color:var(--muted);font-size:14px}.filters{display:flex;gap:8px;overflow:auto;padding:3px 0 12px;scrollbar-width:thin}.chip{white-space:nowrap;border:1px solid var(--line);background:#120e1b;color:#c8bfd8;padding:9px 13px;border-radius:99px}.chip.active,.chip:hover{background:#6d28d9;border-color:#a855f7;color:white}
-.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:17px}.anime-card{min-width:0;background:var(--panel);border:1px solid #261d33;border-radius:16px;overflow:hidden;transition:transform .18s,border-color .18s;cursor:pointer}.anime-card:hover{transform:translateY(-4px);border-color:#7c3aed}.poster{aspect-ratio:3/4;position:relative;display:flex;align-items:end;padding:12px;background:linear-gradient(160deg,var(--c1),var(--c2));overflow:hidden}.poster:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 65% 24%,#ffffff55,transparent 22%),linear-gradient(0deg,#08050dd9,transparent 65%)}.poster:after{content:attr(data-symbol);position:absolute;right:8%;top:6%;font-size:clamp(70px,9vw,130px);font-weight:900;color:#ffffff24;transform:rotate(8deg)}.poster-title{position:relative;z-index:1;font-size:20px;line-height:1.05;font-weight:950;text-shadow:0 2px 12px #000}.score{position:absolute;top:10px;left:10px;z-index:2;background:#0b0815c9;border:1px solid #ffffff2a;border-radius:8px;padding:5px 7px;font-size:12px;font-weight:800}.fav{position:absolute;right:9px;top:9px;z-index:3;width:34px;height:34px;border:1px solid #ffffff40;background:#100b20b8;color:white;border-radius:50%;font-size:18px}.fav.saved{color:#e9a8ff;border-color:#c084fc}.card-info{padding:12px}.card-info h3{font-size:15px;margin:0 0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}.tag{color:#d8b4fe}.empty{grid-column:1/-1;border:1px dashed #4b365d;border-radius:16px;padding:35px;text-align:center;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:17px}.anime-card{min-width:0;background:var(--panel);border:1px solid #261d33;border-radius:16px;overflow:hidden;transition:transform .18s,border-color .18s;cursor:pointer}.anime-card:hover{transform:translateY(-4px);border-color:#7c3aed}.poster{aspect-ratio:3/4;position:relative;display:flex;align-items:end;padding:12px;background:linear-gradient(160deg,var(--c1,#7138a8),var(--c2,#161027));overflow:hidden}.poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.poster:before{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#08050de8,transparent 65%);z-index:1}.poster:after{content:"";position:absolute;right:8%;top:6%;font-size:clamp(70px,9vw,130px);font-weight:900;color:#ffffff24;transform:rotate(8deg);z-index:1}.poster-title{z-index:2}.score{z-index:3}.fav{z-index:4}.load-row{display:flex;justify-content:center;padding:24px 0}.status{color:var(--muted);font-size:14px;padding:14px 0;min-height:24px}.poster-fallback{position:absolute;inset:0;display:grid;place-items:center;font-size:70px;color:#ffffff44}.poster-title{position:relative;z-index:1;font-size:20px;line-height:1.05;font-weight:950;text-shadow:0 2px 12px #000}.score{position:absolute;top:10px;left:10px;z-index:2;background:#0b0815c9;border:1px solid #ffffff2a;border-radius:8px;padding:5px 7px;font-size:12px;font-weight:800}.fav{position:absolute;right:9px;top:9px;z-index:3;width:34px;height:34px;border:1px solid #ffffff40;background:#100b20b8;color:white;border-radius:50%;font-size:18px}.fav.saved{color:#e9a8ff;border-color:#c084fc}.card-info{padding:12px}.card-info h3{font-size:15px;margin:0 0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}.tag{color:#d8b4fe}.empty{grid-column:1/-1;border:1px dashed #4b365d;border-radius:16px;padding:35px;text-align:center;color:var(--muted)}
 footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:13px}.foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .modal{position:fixed;inset:0;background:#030207d9;backdrop-filter:blur(8px);z-index:30;display:none;align-items:center;justify-content:center;padding:18px}.modal.open{display:flex}.dialog{width:min(700px,100%);background:#120e1b;border:1px solid #553078;border-radius:22px;overflow:hidden;box-shadow:0 24px 100px #0009}.dialog-top{display:grid;grid-template-columns:180px 1fr;gap:22px;padding:22px}.dialog-poster{min-height:230px;border-radius:14px;background:linear-gradient(145deg,#8b5cf6,#160b26);display:grid;place-items:center;font-size:62px;color:#ffffff55}.dialog h2{margin:3px 0 10px;font-size:27px}.dialog p{color:#c8bfd8;line-height:1.6}.close{float:right;border:0;background:#2a2037;color:white;border-radius:9px;padding:7px 11px}.episodes{padding:0 22px 22px}.episodes h3{margin:0 0 10px}.episode-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #302440;border-radius:10px;margin-top:8px;color:#c8bfd8}.episode-row button{border:0;border-radius:8px;background:#6d28d9;color:white;padding:8px 11px}.notice{color:#a99dbb;font-size:12px;line-height:1.5;margin-top:12px}
 @media(max-width:900px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.navlinks{display:none}.hero-card{min-height:300px}}
@@ -38,49 +38,112 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
 <main class="wrap" id="catalog">
   <div class="section-head"><div><h2 id="sectionTitle">Популярное</h2><p id="sectionSubtitle">Выбери следующую историю</p></div></div>
   <div class="filters" id="filters"></div>
-  <div class="grid" id="grid"></div>
+  <div class="status" id="status" role="status">Подключаем каталог AniList…</div><div class="grid" id="grid"></div><div class="load-row"><button class="btn" id="loadMore" hidden>Загрузить ещё</button></div>
 </main>
-<footer><div class="wrap foot"><div class="brand"><span class="mark">A</span><span>ANI<span>MORA</span></span></div><div>ANIMORA · Демонстрационная версия сайта</div><div>Чёрный × Фиолетовый</div></div><div class="wrap notice">Названия и карточки в этой демоверсии служат для проверки интерфейса. Доступность серий, озвучек и права на показ должны проверяться отдельно. Сайт пока не содержит видеопотоков.</div></footer>
+<footer><div class="wrap foot"><div class="brand"><span class="mark">A</span><span>ANI<span>MORA</span></span></div><div>ANIMORA · Каталог аниме</div><div>Чёрный × Фиолетовый</div></div><div class="wrap notice">Каталог и метаданные предоставляются AniList. Информация о сериях и озвучках зависит от доступных источников; этот сайт пока не размещает видеопотоки.</div></footer>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="episodes"><h3>Серии и просмотр</h3><div class="episode-row"><span>Список серий</span><span>Будет подключён на следующем этапе</span></div><div class="notice">Здесь появятся только серии из официальных источников, которые разрешают просмотр или встраивание. Сейчас это демонстрационный интерфейс.</div></div></div></div>
 <script>
-const anime = [
-{id:1,title:"Атака титанов",en:"Attack on Titan",genre:"Экшен",year:2013,score:"9.1",symbol:"進",c1:"#7138a8",c2:"#161027",desc:"Человечество живёт за огромными стенами, защищаясь от таинственных титанов. История о свободе, страхе и цене выбора."},
-{id:2,title:"Магическая битва",en:"Jujutsu Kaisen",genre:"Фэнтези",year:2020,score:"8.7",symbol:"呪",c1:"#5521a0",c2:"#100b20",desc:"Мир проклятий, опасных миссий и героев, которым приходится сталкиваться с тёмной стороной человеческих эмоций."},
-{id:3,title:"Ван-Пис",en:"One Piece",genre:"Приключения",year:1999,score:"9.0",symbol:"海",c1:"#147f9a",c2:"#13203c",desc:"Большое морское путешествие, верная команда и мечта, которая объединяет друзей на пути к неизвестному."},
-{id:4,title:"Клинок, рассекающий демонов",en:"Demon Slayer",genre:"Экшен",year:2019,score:"8.6",symbol:"刃",c1:"#a63b4c",c2:"#241022",desc:"Юный охотник на демонов отправляется в опасное путешествие, чтобы спасти близкого человека и защитить других."},
-{id:5,title:"Тетрадь смерти",en:"Death Note",genre:"Триллер",year:2006,score:"8.9",symbol:"死",c1:"#54516c",c2:"#090710",desc:"Таинственная тетрадь меняет жизнь школьника и запускает интеллектуальную дуэль, в которой каждый шаг имеет последствия."},
-{id:6,title:"Наруто",en:"Naruto",genre:"Приключения",year:2002,score:"8.4",symbol:"忍",c1:"#e8782c",c2:"#4a1d34",desc:"История настойчивого ниндзя, который мечтает стать лидером своей деревни и доказать, что достоин доверия."},
-{id:7,title:"Твоё имя",en:"Your Name",genre:"Романтика",year:2016,score:"8.8",symbol:"君",c1:"#cf6b9f",c2:"#26204e",desc:"Двое незнакомцев неожиданно оказываются связаны загадочным образом, который меняет их судьбы."},
-{id:8,title:"Вайолет Эвергарден",en:"Violet Evergarden",genre:"Драма",year:2018,score:"8.5",symbol:"花",c1:"#6c91bb",c2:"#19112c",desc:"Девушка учится понимать чувства людей, превращая их переживания в письма, которые могут изменить жизнь."},
-{id:9,title:"Моя геройская академия",en:"My Hero Academia",genre:"Экшен",year:2016,score:"8.2",symbol:"力",c1:"#369f87",c2:"#14233c",desc:"В мире необычных способностей подросток стремится стать героем и узнать, что на самом деле означает сила."},
-{id:10,title:"Хоримия",en:"Horimiya",genre:"Романтика",year:2021,score:"8.1",symbol:"恋",c1:"#bd6b9a",c2:"#282044",desc:"Тёплая школьная история о людях, которые постепенно открывают друг другу настоящие стороны своей личности."}
-];
-const genres=["Все","Экшен","Фэнтези","Приключения","Триллер","Романтика","Драма"];
-let genre="Все", view="all", selected=null;
-const saved = new Set(JSON.parse(localStorage.getItem("animora-favorites")||"[]"));
-const grid=document.querySelector("#grid"),filters=document.querySelector("#filters"),search=document.querySelector("#search");
-function persist(){localStorage.setItem("animora-favorites",JSON.stringify([...saved]));}
-function renderFilters(){filters.innerHTML=genres.map(g=>`<button class="chip ${genre===g?"active":""}" data-genre="${g}">${g}</button>`).join("");}
-function render(){
+const API_URL = "https://graphql.anilist.co";
+const PAGE_SIZE = 24;
+const GENRES = ["Все","Экшен","Приключения","Комедия","Драма","Фэнтези","Ужасы","Меха","Музыка","Детектив","Психологическое","Романтика","Научная фантастика","Повседневность","Спорт","Сверхъестественное","Триллер"];
+let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, searchTimer = null, requestToken = 0;
+let anime = [];
+const saved = new Set(JSON.parse(localStorage.getItem("animora-favorites") || "[]").map(Number));
+const grid = document.querySelector("#grid"), filters = document.querySelector("#filters"), search = document.querySelector("#search");
+const statusEl = document.querySelector("#status"), loadMore = document.querySelector("#loadMore");
+function persist(){localStorage.setItem("animora-favorites", JSON.stringify([...saved]));}
+function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function plainText(s=""){const t=document.createElement("div");t.innerHTML=s;return (t.textContent||t.innerText||"").trim();}
+function titleOf(a){return a.title?.english || a.title?.romaji || a.title?.native || "Без названия";}
+function yearOf(a){return a.seasonYear || (a.startDate?.year) || "Год неизвестен";}
+function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "—";}
+function descriptionOf(a){return plainText(a.description || "Описание пока отсутствует.");}
+function renderFilters(){filters.innerHTML=GENRES.map(g=>'<button class="chip '+(genre===g?"active":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>').join("");}
+function filteredAnime(){
  const q=search.value.trim().toLowerCase();
- const list=anime.filter(a=>(genre==="Все"||a.genre===genre)&&(view!=="favorites"||saved.has(a.id))&&(!q||(a.title+" "+a.en+" "+a.genre).toLowerCase().includes(q)));
- document.querySelector("#sectionTitle").textContent=view==="favorites"?"Избранное":q?"Результаты поиска":genre==="Все"?"Популярное":genre;
- document.querySelector("#sectionSubtitle").textContent=view==="favorites"?"Тайтлы, сохранённые на этом устройстве":`${list.length} в демонстрационном каталоге`;
- grid.innerHTML=list.length?list.map(a=>`<article class="anime-card" data-id="${a.id}" tabindex="0" aria-label="Открыть ${a.title}"><div class="poster" style="--c1:${a.c1};--c2:${a.c2}" data-symbol="${a.symbol}"><span class="score">★ ${a.score}</span><button class="fav ${saved.has(a.id)?"saved":""}" data-fav="${a.id}" aria-label="Добавить в избранное">${saved.has(a.id)?"♥":"♡"}</button><div class="poster-title">${a.title}</div></div><div class="card-info"><h3>${a.title}</h3><div class="meta"><span>${a.year} · ${a.genre}</span><span class="tag">Аниме</span></div></div></article>`).join(""):`<div class="empty">Ничего не найдено.<br>Попробуй другой запрос или жанр.</div>`;
+ return anime.filter(a=>(genre==="Все"||(a.genres||[]).includes(genre))&&(view!=="favorites"||saved.has(a.id))&&(!q||[titleOf(a),a.title?.romaji,a.title?.english,a.title?.native,(a.genres||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
 }
-function openAnime(id){selected=anime.find(a=>a.id===id);if(!selected)return;document.querySelector("#modalPoster").textContent=selected.symbol;document.querySelector("#modalPoster").style.background=`linear-gradient(145deg,${selected.c1},${selected.c2})`;document.querySelector("#modalMeta").textContent=`★ ${selected.score} · ${selected.year} · ${selected.genre}`;document.querySelector("#modalTitle").textContent=selected.title;document.querySelector("#modalDesc").textContent=selected.desc;document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";document.querySelector("#modal").classList.add("open");}
-filters.addEventListener("click",e=>{const b=e.target.closest("[data-genre]");if(b){genre=b.dataset.genre;renderFilters();render();}});
-grid.addEventListener("click",e=>{const f=e.target.closest("[data-fav]");if(f){const id=Number(f.dataset.fav);saved.has(id)?saved.delete(id):saved.add(id);persist();render();if(selected?.id===id)document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";return;}const card=e.target.closest("[data-id]");if(card)openAnime(Number(card.dataset.id));});
+function render(){
+ const list=filteredAnime();
+ document.querySelector("#sectionTitle").textContent=view==="favorites"?"Избранное":search.value.trim()?"Результаты поиска":genre==="Все"?"Популярное":genre;
+ document.querySelector("#sectionSubtitle").textContent=view==="favorites"?"Тайтлы, сохранённые на этом устройстве":list.length+" аниме в загруженных результатах";
+ grid.innerHTML=list.length?list.map(a=>{
+  const title=titleOf(a), poster=a.coverImage?.large||a.coverImage?.medium||"";
+  return '<article class="anime-card" data-id="'+a.id+'" tabindex="0" aria-label="Открыть '+esc(title)+'"><div class="poster"><div class="poster-fallback">✦</div>'+(poster?'<img loading="lazy" src="'+esc(poster)+'" alt="Постер '+esc(title)+'" onerror="this.style.display=\'none\'">':"")+'<span class="score">★ '+scoreOf(a)+'</span><button class="fav '+(saved.has(a.id)?"saved":"")+'" data-fav="'+a.id+'" aria-label="Добавить в избранное">'+(saved.has(a.id)?"♥":"♡")+'</button><div class="poster-title">'+esc(title)+'</div></div><div class="card-info"><h3>'+esc(title)+'</h3><div class="meta"><span>'+esc(yearOf(a))+' · '+esc((a.genres||[])[0]||"Аниме")+'</span><span class="tag">'+esc(a.episodes? a.episodes+" сер.":"Аниме")+'</span></div></div></article>';
+ }).join(""):'<div class="empty">Ничего не найдено.<br>Попробуй другой запрос или жанр.</div>';
+ loadMore.hidden=!(hasNextPage && view!=="favorites" && !search.value.trim());
+}
+function setStatus(msg){statusEl.textContent=msg;}
+async function apiRequest(query, variables){
+ const response=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({query,variables})});
+ if(!response.ok) throw new Error("AniList ответил с кодом "+response.status);
+ const json=await response.json();
+ if(json.errors?.length) throw new Error(json.errors[0].message||"Ошибка GraphQL");
+ return json.data;
+}
+const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String]) {
+ Page(page:$page,perPage:$perPage) {
+  pageInfo { currentPage hasNextPage }
+  media(type:ANIME,sort:POPULARITY_DESC,search:$search,genre_in:$genres) {
+   id title { romaji english native } coverImage { large medium } description(asHtml:false)
+   genres averageScore episodes seasonYear startDate { year } format status
+  }
+ }
+}`;
+async function loadCatalog({reset=true}={}){
+ if(loading)return;
+ const token=++requestToken, q=search.value.trim();
+ loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог AniList…");
+ if(reset){page=1;hasNextPage=false;anime=[];render();}
+ try{
+  const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"?null:[genre]};
+  const data=await apiRequest(LIST_QUERY,variables);
+  if(token!==requestToken)return;
+  const result=data.Page;
+  const incoming=result.media||[];
+  anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
+  hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
+  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице поиска");
+  render();
+ }catch(error){
+  if(token!==requestToken)return;
+  setStatus("Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз. ("+error.message+")");
+  if(!anime.length)grid.innerHTML='<div class="empty">Не удалось подключиться к AniList.<br><button class="btn" id="retry">Повторить загрузку</button></div>';
+ }finally{
+  if(token===requestToken){loading=false;loadMore.disabled=false;}
+ }
+}
+function openAnime(id){
+ selected=anime.find(a=>a.id===id);if(!selected)return;
+ const poster=selected.coverImage?.large||selected.coverImage?.medium||"";
+ const modalPoster=document.querySelector("#modalPoster");
+ modalPoster.innerHTML=poster?'<img src="'+esc(poster)+'" alt="Постер '+esc(titleOf(selected))+'" style="width:100%;height:100%;min-height:230px;object-fit:cover;border-radius:14px">':"✦";
+ document.querySelector("#modalMeta").textContent="★ "+scoreOf(selected)+" · "+yearOf(selected)+" · "+(selected.format||"АНИМЕ")+" · "+(selected.episodes?selected.episodes+" серий":"серии неизвестны");
+ document.querySelector("#modalTitle").textContent=titleOf(selected);
+ document.querySelector("#modalDesc").textContent=descriptionOf(selected);
+ const tags=(selected.genres||[]).join(" · ");
+ document.querySelector("#modalDesc").textContent=(descriptionOf(selected))+(tags?"\n\nЖанры: "+tags:"")+(selected.status?"\n\nСтатус: "+selected.status:"");
+ document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";
+ document.querySelector("#modal").classList.add("open");
+}
+filters.addEventListener("click",e=>{const b=e.target.closest("[data-genre]");if(b){genre=b.dataset.genre;renderFilters();loadCatalog({reset:true});}});
+grid.addEventListener("click",e=>{
+ if(e.target.closest("#retry")){loadCatalog({reset:true});return;}
+ const f=e.target.closest("[data-fav]");
+ if(f){e.stopPropagation();const id=Number(f.dataset.fav);saved.has(id)?saved.delete(id):saved.add(id);persist();render();if(selected?.id===id)document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";return;}
+ const card=e.target.closest("[data-id]");if(card)openAnime(Number(card.dataset.id));
+});
 grid.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-id]"))openAnime(Number(e.target.dataset.id));});
-search.addEventListener("input",render);
+search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadCatalog({reset:true}),350);});
+loadMore.addEventListener("click",()=>loadCatalog({reset:false}));
 document.querySelector("#modalFav").addEventListener("click",()=>{if(!selected)return;saved.has(selected.id)?saved.delete(selected.id):saved.add(selected.id);persist();document.querySelector("#modalFav").textContent=saved.has(selected.id)?"♥ В избранном":"♡ В избранное";render();});
 document.querySelector("#closeModal").addEventListener("click",()=>document.querySelector("#modal").classList.remove("open"));
 document.querySelector("#modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelector("#modal").classList.remove("open");});
 function setView(v){view=v;render();document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===v));document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});}
-document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.view)));
+document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>{setView(b.dataset.view);if(v!=="favorites"&&anime.length===0)loadCatalog({reset:true});}));
 document.querySelector("#showFav").addEventListener("click",()=>setView("favorites"));
-document.querySelector("#explore").addEventListener("click",()=>{setView("all");document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});});
-renderFilters();render();
+document.querySelector("#explore").addEventListener("click",()=>{setView("all");document.querySelector("#catalog").scrollIntoView({behavior:"smooth"});if(!anime.length)loadCatalog({reset:true});});
+renderFilters();render();loadCatalog({reset:true});
 </script>
 </body></html>
