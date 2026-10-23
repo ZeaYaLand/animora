@@ -180,7 +180,7 @@ async function loadCatalog({reset=true}={}){
  loading=true;loadMore.disabled=true;setStatus(q?"Ищем аниме…":"Загружаем каталог…");
  if(reset){page=1;hasNextPage=false;anime=[];render();}
  try{
-  const selectedGenre=GENRE_MAP[genre]||genre;const tagName=GENRE_TAG_MAP[genre]||"";const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||!ANILIST_GENRES.has(selectedGenre)?null:[selectedGenre],tags:tagName?[tagName]:null};
+  const selectedGenre=GENRE_MAP[genre]||genre;const isAniListGenre=ANILIST_GENRES.has(selectedGenre);const tagName=GENRE_TAG_MAP[genre]||"";const variables={page,perPage:PAGE_SIZE,search:q||null,genres:genre==="Все"||!isAniListGenre?null:[selectedGenre],tags:genre==="Все"||isAniListGenre||!tagName?null:[tagName]};
   const data=await apiRequest(LIST_QUERY,variables);
   if(token!==requestToken)return;
   const result=data.Page;
@@ -188,7 +188,7 @@ async function loadCatalog({reset=true}={}){
   anime=reset?incoming:anime.concat(incoming.filter(a=>!anime.some(old=>old.id===a.id)));
   anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
-  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице"+(genre!=="Все"&&!ANILIST_GENRES.has(selectedGenre)?" · расширенный жанр фильтруется по загруженным данным":""));
+  setStatus("Каталог загружен · "+anime.length+" результатов на этой странице"+(genre!=="Все"&&!isAniListGenre?" · фильтр по тематике":""));
   render();
   enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
