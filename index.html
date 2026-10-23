@@ -35,6 +35,7 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
  .dialog h2{font-size:19px;overflow-wrap:anywhere}
  .dialog p{font-size:14px;line-height:1.5}
  .episodes{max-height:28dvh;padding:0 12px 12px}
+ .related{padding:0 12px 14px}.related-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.related-item{display:flex;align-items:center;gap:9px;text-align:left;background:#17131f;border:1px solid #33283f;color:inherit;border-radius:12px;padding:8px;cursor:pointer;min-width:0}.related-item img{width:42px;height:58px;object-fit:cover;border-radius:6px;flex-shrink:0}.related-item strong{display:block;font-size:12px;line-height:1.35}.related-item small{display:block;color:#b6a9c3;font-size:10px;margin-top:5px}
  .filters{max-width:100%;overscroll-behavior-x:contain}
 }
 </style>
@@ -58,7 +59,7 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
   <div class="status" id="status" role="status">Подключаем каталог AniList…</div><div class="grid" id="grid"></div><div class="load-row"><button class="btn" id="loadMore" hidden>Загрузить ещё</button></div>
 </main>
 <footer><div class="wrap foot"><div class="brand"><span class="mark">A</span><span>ANI<span>MORA</span></span></div><div>ANIMORA · Каталог аниме</div><div>Чёрный × Фиолетовый</div></div><div class="wrap notice">Каталог и метаданные предоставляются AniList. Информация о сериях и озвучках зависит от доступных источников; этот сайт пока не размещает видеопотоки.</div></footer>
-<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="episodes"><h3>Серии и просмотр</h3><div class="episode-row"><span>Список серий</span><span>Будет подключён на следующем этапе</span></div><div class="notice">Здесь появятся только серии из официальных источников, которые разрешают просмотр или встраивание. Сейчас это демонстрационный интерфейс.</div></div></div></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="related" id="relatedBlock" hidden><h3>Связанные аниме</h3><div id="relatedList" class="related-list"></div></div><div class="episodes"><h3>Серии и просмотр</h3><div class="episode-row"><span>Список серий</span><span>Будет подключён на следующем этапе</span></div><div class="notice">Здесь появятся только серии из официальных источников, которые разрешают просмотр или встраивание. Сейчас это демонстрационный интерфейс.</div></div></div></div>
 <script>
 const API_URL = "https://graphql.anilist.co";
 const PAGE_SIZE = 24;
@@ -174,6 +175,33 @@ const LIST_QUERY=`query ($page:Int,$perPage:Int,$search:String,$genres:[String],
   }
  }
 }`;
+const RELATIONS_QUERY=`query ($id:Int!) {
+ Media(id:$id,type:ANIME) {
+  relations {
+   edges {
+    relationType
+    node { id type format status episodes seasonYear startDate { year } title { romaji english native } coverImage { medium large } }
+   }
+  }
+ }
+}`;
+async function loadRelated(id){
+ const block=document.querySelector("#relatedBlock"), list=document.querySelector("#relatedList");
+ block.hidden=false;list.innerHTML='<div class="notice">Ищем связанные сезоны и продолжения…</div>';
+ try{
+  const data=await apiRequest(RELATIONS_QUERY,{id});
+  if(!selected||selected.id!==id)return;
+  const edges=data?.Media?.relations?.edges||[];
+  const items=edges.filter(e=>e.node?.type==="ANIME"&&e.node.id!==id).slice(0,12);
+  if(!items.length){block.hidden=true;return;}
+  list.innerHTML=items.map(e=>{
+   const a=e.node, title=titleOf(a), img=a.coverImage?.medium||a.coverImage?.large||"";
+   const relation=({"PREQUEL":"Приквел","SEQUEL":"Продолжение","PARENT":"Основная история","SIDE_STORY":"Побочная история","SPIN_OFF":"Спин-офф","ALTERNATIVE":"Альтернативная версия","SUMMARY":"Пересказ","CHARACTER":"Связанные персонажи","OTHER":"Другое","SOURCE":"Первоисточник","COMPILATION":"Сборник","CONTAINS":"Включает"}[e.relationType]||"Связано");
+   const year=a.seasonYear||a.startDate?.year||"Год неизвестен";
+   return '<button class="related-item" data-related-id="'+a.id+'">'+(img?'<img loading="lazy" src="'+esc(img)+'" alt="">':'')+'<span><strong>'+esc(title)+'</strong><small>'+esc(relation)+' · '+esc(year)+'</small></span></button>';
+  }).join("");
+ }catch(_){block.hidden=true;}
+}
 async function loadCatalog({reset=true}={}){
  if(loading){pendingLoad={reset};return;}
  const token=++requestToken, q=search.value.trim();
@@ -219,8 +247,11 @@ function openAnime(id){
  document.querySelector("#modalDesc").textContent=extra;
  translateDescription(descriptionOf(selected)).then(t=>{if(selected&&selected.id===currentId&&document.querySelector("#modal").classList.contains("open"))document.querySelector("#modalDesc").textContent=t+extra;}).catch(()=>{if(selected&&selected.id===currentId)document.querySelector("#modalDesc").textContent=descriptionOf(selected)+extra+"\n\n(Перевод недоступен — показан оригинал.)";});
  document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";
+ document.querySelector("#relatedBlock").hidden=true;document.querySelector("#relatedList").innerHTML="";
  document.querySelector("#modal").classList.add("open");
+ loadRelated(currentId);
 }
+document.querySelector("#relatedList").addEventListener("click",e=>{const b=e.target.closest("[data-related-id]");if(b)openAnime(Number(b.dataset.relatedId));});
 filters.addEventListener("click",e=>{const b=e.target.closest("[data-genre]");if(b){genre=b.dataset.genre;renderFilters();loadCatalog({reset:true});}});
 grid.addEventListener("click",e=>{
  if(e.target.closest("#retry")){loadCatalog({reset:true});return;}
