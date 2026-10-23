@@ -59,7 +59,7 @@ footer{border-top:1px solid #241b31;padding:25px 0;color:var(--muted);font-size:
   <div class="status" id="status" role="status">Подключаем каталог AniList…</div><div class="grid" id="grid"></div><div class="load-row"><button class="btn" id="loadMore" hidden>Загрузить ещё</button></div>
 </main>
 <footer><div class="wrap foot"><div class="brand"><span class="mark">A</span><span>ANI<span>MORA</span></span></div><div>ANIMORA · Каталог аниме</div><div>Чёрный × Фиолетовый</div></div><div class="wrap notice">Каталог и метаданные предоставляются AniList. Информация о сериях и озвучках зависит от доступных источников; этот сайт пока не размещает видеопотоки.</div></footer>
-<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="related" id="relatedBlock" hidden><h3>Связанные аниме</h3><div id="relatedList" class="related-list"></div></div><div class="episodes"><h3>Серии и просмотр</h3><div class="episode-row"><span>Список серий</span><span>Будет подключён на следующем этапе</span></div><div class="notice">Здесь появятся только серии из официальных источников, которые разрешают просмотр или встраивание. Сейчас это демонстрационный интерфейс.</div></div></div></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="dialog"><div class="dialog-top"><div class="dialog-poster" id="modalPoster">✦</div><div><button class="close" id="closeModal" aria-label="Закрыть">✕</button><div class="tag" id="modalMeta"></div><h2 id="modalTitle"></h2><p id="modalDesc"></p><button class="btn primary" id="modalFav">♡ В избранное</button></div></div><div class="related" id="relatedBlock" hidden><h3>Связанные аниме</h3><div id="relatedList" class="related-list"></div></div><div class="episodes"><h3>Мой прогресс</h3><div class="episode-row"><span id="progressLabel">Просмотрено 0 серий</span><span id="progressTotal">Всего: неизвестно</span></div><div class="progress-track" style="height:7px;background:#302440;border-radius:99px;overflow:hidden;margin:10px 0 14px"><div id="progressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#c084fc);transition:width .2s"></div></div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="episodeMinus" type="button">− 1 серия</button><button class="btn primary" id="episodePlus" type="button">+ 1 серия</button><button class="btn" id="episodeReset" type="button">Сбросить</button></div><div class="notice" style="margin-top:12px">Прогресс сохраняется на этом устройстве. Просмотр серий пока не встроен; позже подключим легальные источники видео.</div></div></div></div>
 <script>
 const API_URL = "https://graphql.anilist.co";
 const PAGE_SIZE = 24;
@@ -76,6 +76,20 @@ function genresFor(a){const source=a.shikimoriGenres?.length?a.shikimoriGenres:(
 let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, pendingLoad = null, searchTimer = null, requestToken = 0;
 let anime = [];
 const relatedAnimeCache = new Map();
+const WATCH_PROGRESS_KEY = "animora-watch-progress-v1";
+let watchProgress = {};
+try { watchProgress = JSON.parse(localStorage.getItem(WATCH_PROGRESS_KEY) || "{}"); } catch (_) { watchProgress = {}; }
+function saveWatchProgress(){try{localStorage.setItem(WATCH_PROGRESS_KEY,JSON.stringify(watchProgress));}catch(_){}}
+function renderWatchProgress(){
+ if(!selected)return;
+ const id=String(selected.id), total=Number(selected.episodes)||0;
+ const watched=Math.max(0,Math.min(total||Infinity,Number(watchProgress[id])||0));
+ document.querySelector("#progressLabel").textContent="Просмотрено "+watched+" "+(watched===1?"серия":watched>=2&&watched<=4?"серии":"серий");
+ document.querySelector("#progressTotal").textContent=total?"Всего: "+total:"Всего: неизвестно";
+ document.querySelector("#progressBar").style.width=(total?Math.min(100,watched/total*100):0)+"%";
+ document.querySelector("#episodeMinus").disabled=watched<=0;
+ document.querySelector("#episodePlus").disabled=total>0&&watched>=total;
+}
 const saved = new Set(JSON.parse(localStorage.getItem("animora-favorites") || "[]").map(Number));
 const grid = document.querySelector("#grid"), filters = document.querySelector("#filters"), search = document.querySelector("#search");
 const statusEl = document.querySelector("#status"), loadMore = document.querySelector("#loadMore");
@@ -251,8 +265,12 @@ function openAnime(id){
  document.querySelector("#modalFav").textContent=saved.has(id)?"♥ В избранном":"♡ В избранное";
  document.querySelector("#relatedBlock").hidden=true;document.querySelector("#relatedList").innerHTML="";
  document.querySelector("#modal").classList.add("open");
+ renderWatchProgress();
  loadRelated(currentId);
 }
+document.querySelector("#episodePlus").addEventListener("click",()=>{if(!selected)return;const id=String(selected.id),total=Number(selected.episodes)||0;watchProgress[id]=Math.min(total||Infinity,(Number(watchProgress[id])||0)+1);saveWatchProgress();renderWatchProgress();});
+document.querySelector("#episodeMinus").addEventListener("click",()=>{if(!selected)return;const id=String(selected.id);watchProgress[id]=Math.max(0,(Number(watchProgress[id])||0)-1);saveWatchProgress();renderWatchProgress();});
+document.querySelector("#episodeReset").addEventListener("click",()=>{if(!selected)return;delete watchProgress[String(selected.id)];saveWatchProgress();renderWatchProgress();});
 document.querySelector("#relatedList").addEventListener("click",e=>{const b=e.target.closest("[data-related-id]");if(b)openAnime(Number(b.dataset.relatedId));});
 filters.addEventListener("click",e=>{const b=e.target.closest("[data-genre]");if(b){genre=b.dataset.genre;renderFilters();loadCatalog({reset:true});}});
 grid.addEventListener("click",e=>{
