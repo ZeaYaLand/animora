@@ -2,6 +2,9 @@ name: Build ANIMORA local anime catalog
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-local-catalog.yml"
 
 permissions:
   contents: write
@@ -22,55 +25,86 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, urllib.request, os, tempfile
-          url = "https://github.com/manami-project/anime-offline-database/releases/download/2026-27/anime-offline-database-minified.json"
+          import json, urllib.request, pathlib, datetime
+          url = "https://github.com/cedya77/anime-offline-database/releases/download/latest/anime-offline-database.jsonl"
           req = urllib.request.Request(url, headers={"User-Agent": "ANIMORA-catalog-builder/1.0"})
           with urllib.request.urlopen(req, timeout=180) as response:
-              raw = response.read()
-          source = json.loads(raw)
-          rows = source.get("data", source.get("items", [])) if isinstance(source, dict) else source
-          if not isinstance(rows, list) or len(rows) < 10000:
-              raise SystemExit("Dataset validation failed: expected at least 10,000 records")
+              raw = response.read().decode("utf-8")
           items = []
           seen = set()
-          for row in rows:
+          for line in raw.splitlines():
+              line = line.strip()
+              if not line:
+                  continue
+              try:
+                  row = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
               if not isinstance(row, dict):
                   continue
               title = str(row.get("title") or "").strip()
-              if not title:
-                  continue
               sources = row.get("sources") or []
-              key = tuple(sources) if sources else title.casefold()
+              if not title or not isinstance(sources, list):
+                  continue
+              key = tuple(sorted(str(s) for s in sources)) if sources else title.casefold()
               if key in seen:
                   continue
               seen.add(key)
               season = row.get("animeSeason") or {}
-              year = season.get("year") if isinstance(season, dict) else None
-              picture = row.get("picture") or row.get("thumbnail") or ""
+              if not isinstance(season, dict):
+                  season = {}
+              score = row.get("score") or {}
+              if not isinstance(score, dict):
+                  score = {}
+              tags = []
+              for tag in row.get("tags") or []:
+                  name = tag.get("name") if isinstance(tag, dict) else tag
+                  if name:
+                      tags.append(str(name))
               items.append({
+                  "id": len(items) + 1,
                   "title": title,
                   "type": row.get("type") or "TV",
                   "episodes": row.get("episodes"),
-                  "status": row.get("status"),
-                  "year": year,
-                  "picture": picture,
-                  "synonyms": (row.get("synonyms") or [])[:12],
-                  "studios": (row.get("studios") or [])[:8],
-                  "tags": [str(t.get("name") if isinstance(t, dict) else t) for t in (row.get("tags") or []) if (t.get("name") if isinstance(t, dict) else t)],
+                  "status": row.get("status") or "UNKNOWN",
+                  "year": season.get("year"),
+                  "picture": row.get("picture") or row.get("thumbnail") or "",
+                  "score": score.get("arithmeticGeometricMean"),
+                  "synonyms": [str(x) for x in (row.get("synonyms") or []) if x][:30],
+                  "studios": [str(x) for x in (row.get("studios") or []) if x][:20],
+                  "tags": tags,
                   "sources": sources
               })
           if len(items) < 10000:
-              raise SystemExit(f"Catalog too small after validation: {len(items)}")
-          os.makedirs("data", exist_ok=True)
-          with open("data/catalog.json", "w", encoding="utf-8") as f:
-              json.dump({"source": "anime-offline-database", "license": "ODbL-1.0 / DbCL-1.0", "attribution": "manami-project/anime-offline-database", "generatedAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), "count": len(items), "items": items}, f, ensure_ascii=False, separators=(",", ":"))
-          print(f"Built {len(items)} anime records; output bytes: {os.path.getsize('data/catalog.json')}")
+              raise SystemExit(f"Catalog validation failed: only {len(items)} records")
+          output = pathlib.Path("data/catalog.json")
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps({
+              "source": "anime-offline-database",
+              "license": "ODbL-1.0 + DbCL-1.0",
+              "attribution": "cedya77/anime-offline-database",
+              "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "count": len(items),
+              "items": items
+          }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+          size = output.stat().st_size
+          if size < 1000000:
+              raise SystemExit(f"Catalog file unexpectedly small: {size} bytes")
+          print(f"Built {len(items)} anime records; output bytes: {size}")
           PY
 
-      - name: Commit catalog if changed
+      - name: Validate and commit catalog
         shell: bash
         run: |
           set -euo pipefail
+          python - <<'PY'
+          import json, pathlib
+          p = pathlib.Path("data/catalog.json")
+          db = json.loads(p.read_text(encoding="utf-8"))
+          assert isinstance(db.get("items"), list) and len(db["items"]) >= 10000
+          assert db.get("count") == len(db["items"])
+          print(f"Validated catalog: {len(db['items'])} records, {p.stat().st_size} bytes")
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/catalog.json
