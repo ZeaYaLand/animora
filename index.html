@@ -294,7 +294,7 @@ async function fetchCompatibleCatalog(base,query,pageNumber,sourceName){
  finally{clearTimeout(timer);}
 }
 async function fetchKitsuCatalog(query,pageNumber){
- const params=new URLSearchParams({"page[limit]":String(PAGE_SIZE),"page[offset]":String((pageNumber-1)*PAGE_SIZE),"sort":"-popularityRank","include":"genres"});
+  const KITSU_PAGE_SIZE=20;const params=new URLSearchParams({"page[limit]":String(KITSU_PAGE_SIZE),"page[offset]":String((pageNumber-1)*KITSU_PAGE_SIZE),"sort":"-popularityRank","include":"genres"});
  if(query)params.set("filter[text]",query);
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
  try{
@@ -352,9 +352,9 @@ async function loadCatalog({reset=true}={}){
     result=data.Page;
    }
    // Merge unique anime from Kitsu and Jikan into the current page.
-   const extraSources=[()=>fetchKitsuCatalog(q,page),()=>fetchJikanCatalog(q,page)];
-   const extraResults=await Promise.allSettled(extraSources.map(run=>run()));
-   const merged=[...(result.media||[])];
+   const extraSources=[{name:"Kitsu",run:()=>fetchKitsuCatalog(q,page)},{name:"Jikan",run:()=>fetchJikanCatalog(q,page)}];
+   const extraResults=await Promise.allSettled(extraSources.map(source=>source.run()));
+   const merged=[...(result.media||[])];const sourceErrors=[];extraResults.forEach((settled,i)=>{if(settled.status==="rejected")sourceErrors.push(extraSources[i].name+": "+(settled.reason?.message||"ошибка запроса"));});
    const normalizeKey=a=>String(a.title?.english||a.title?.romaji||a.title?.native||"").toLowerCase().replace(/[^a-zа-яё0-9]/gi,"");
    const known=new Set(merged.map(normalizeKey).filter(Boolean));
    for(const settled of extraResults){
@@ -373,7 +373,7 @@ async function loadCatalog({reset=true}={}){
   anime.forEach(a=>{if(!a.russianTitle)a.russianTitle=RU_TITLES[a.title?.english]||RU_TITLES[a.title?.romaji]||ruTitleCache[String(a.id)]||a.title?.english||a.title?.romaji||a.title?.native||"Без названия";});
   if(view!=="favorites"&&genre==="Все"&&!q&&page===1){try{localStorage.setItem("animora-catalog-cache-v1",JSON.stringify({savedAt:Date.now(),items:incoming}));}catch(_){}}
   hasNextPage=result.pageInfo.hasNextPage;page=result.pageInfo.currentPage+1;
-  setStatus(view==="favorites"?"Избранное загружено · "+anime.length+" аниме":"Каталог загружен · "+anime.length+" результатов на этой странице"+(genre!=="Все"&&((!ANILIST_GENRES.has(GENRE_MAP[genre]||genre))||["Романтическая комедия","Демоны","CGDCT"].includes(genre))?" · фильтр по тематике":""));
+   setStatus(view==="favorites"?"Избранное загружено · "+anime.length+" аниме":"Каталог загружен · "+anime.length+" уникальных результатов · источники: "+[...new Set(incoming.map(a=>a.sourceName||"AniList"))].join(", ")+(sourceErrors.length?" · источники недоступны: "+sourceErrors.join("; "):"")+(genre!=="Все"&&((!ANILIST_GENRES.has(GENRE_MAP[genre]||genre))||["Романтическая комедия","Демоны","CGDCT"].includes(genre))?" · фильтр по тематике":""));
   render();
   enrichRussianTitles(incoming).catch(()=>{});
  }catch(error){
