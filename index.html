@@ -72,6 +72,14 @@ const GENRE_RU = Object.fromEntries(Object.entries(GENRE_MAP).map(([ru,en])=>[en
 const SHIKI_GENRE_RU = {"Action":"Экшен","Adventure":"Приключения","Comedy":"Комедия","Drama":"Драма","Fantasy":"Фэнтези","Horror":"Ужасы","Mecha":"Меха","Music":"Музыка","Mystery":"Детектив","Psychological":"Психологическое","Romance":"Романтика","Sci-Fi":"Научная фантастика","Slice of Life":"Повседневность","Sports":"Спорт","Supernatural":"Сверхъестественное","Thriller":"Триллер","Military":"Военное","Historical":"Исторический","Kids":"Детское","Work":"Работа","Gourmet":"Гурман","Isekai":"Исэкай","Martial Arts":"Боевые искусства","Magic":"Магия","Samurai":"Самураи","School":"Школа","Shounen":"Сёнэн","Shoujo":"Сёдзё","Seinen":"Сэйнэн","Josei":"Дзёсэй","Harem":"Гарем","Reverse Harem":"Обратный гарем","Ecchi":"Этти","Idols":"Айдолы","Parody":"Пародия","Post-Apocalyptic":"Постапокалипсис","Space":"Космос","Vampire":"Вампиры","Demons":"Демоны","Super Power":"Сверхспособности","Reincarnation":"Реинкарнация","Avant Garde":"Авангард","Award Winning":"Отмеченное наградами","Gourmet":"Гурман","Suspense":"Саспенс","Performing Arts":"Исполнительское искусство","Visual Arts":"Изобразительное искусство","Strategy Game":"Стратегия","Educational":"Обучающее","Hentai":"Хентай","Boys Love":"Любовь между парнями","Girls Love":"Любовь между девушками","Medical":"Медицинское","Time Travel":"Путешествие во времени","Survival":"Выживание","Racing":"Гонки","Video Game":"Видеоигры","Organized Crime":"Организованная преступность","Showbiz":"Шоу-бизнес","Anthropomorphic":"Животные","Team Sports":"Спортивные команды","Workplace":"Повседневная работа"};
 function genreRu(g){return SHIKI_GENRE_RU[g]||GENRE_RU[g]||g;}
 function genresFor(a){const source=a.shikimoriGenres?.length?a.shikimoriGenres:(a.genres||[]);return source.map(genreRu);}
+function matchesGenre(a,g=genre){
+ if(g==="Все")return true;
+ const mapped=GENRE_MAP[g]||g,tag=GENRE_TAG_MAP[g]||"";
+ const same=(x,y)=>normalizeTitle(x)===normalizeTitle(y);
+ return genresFor(a).some(x=>same(x,g)||same(x,mapped))||
+  (a.genres||[]).some(x=>same(x,g)||same(x,mapped))||
+  (a.tags||[]).some(t=>t&&[t.name,t.russian].filter(Boolean).some(x=>same(x,g)||same(x,mapped)||(tag&&same(x,tag))));
+}
 
 let genre = "Все", view = "all", selected = null, page = 1, hasNextPage = false, loading = false, pendingLoad = null, searchTimer = null, requestToken = 0;
 let anime = [];
@@ -211,12 +219,12 @@ function scoreOf(a){return a.averageScore ? (a.averageScore/10).toFixed(1) : "�
 function descriptionOf(a){return plainText(a.description || "Описание пока отсутствует.");}
 function filterLocalCatalog(items){
  const q=search.value.trim().toLowerCase();
- return items.filter(a=>(genre==="Все"||genresFor(a).includes(genre)||(a.genres||[]).includes(GENRE_MAP[genre]||genre)||(a.tags||[]).some(t=>(GENRE_TAG_MAP[genre]||"")===t.name))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" "), (a.tags||[]).map(t=>t.name).join(" "), (a.externalSources||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
+ return items.filter(a=>matchesGenre(a,genre)&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" "), (a.tags||[]).map(t=>t.name).join(" "), (a.externalSources||[]).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
 }
 function renderFilters(){filters.innerHTML=GENRES.map(g=>'<button class="chip '+(genre===g?"active":"")+'" data-genre="'+esc(g)+'">'+esc(g)+'</button>').join("");}
 function filteredAnime(){
  const q=search.value.trim().toLowerCase();
- return anime.filter(a=>(genre==="Все"||genresFor(a).includes(genre)||(a.genres||[]).includes(GENRE_MAP[genre]||genre)||(a.tags||[]).some(t=>(GENRE_TAG_MAP[genre]||"")===t.name&&t.rank>=20))&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" "), (a.tags||[]).map(t=>t.name).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
+ return anime.filter(a=>matchesGenre(a,genre)&&(view!=="favorites"||saved.has(a.id))&&(!q||[searchTitles(a),genresFor(a).join(" "), (a.tags||[]).map(t=>t.name).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q)));
 }
 function render(){
  const list=filteredAnime();
@@ -489,10 +497,7 @@ async function loadCatalog({reset=true}={}){
     const normalizedResult={...result.value,media:Array.isArray(result.value.media)?result.value.media:[]};
     // Third-party APIs do not share AniList's genre/tag filters. Apply compatible genre filtering locally.
     if(genre!=="Все"&&sources[index].name!=="AniList"){
-     const selectedGenre=GENRE_MAP[genre];
-     if(selectedGenre&&ANILIST_GENRES.has(selectedGenre)){
-      normalizedResult.media=normalizedResult.media.filter(item=>genresFor(item).some(g=>normalizeTitle(g)===normalizeTitle(genre)||normalizeTitle(g)===normalizeTitle(selectedGenre)));
-     }else normalizedResult.media=[];
+     normalizedResult.media=normalizedResult.media.filter(item=>matchesGenre(item,genre));
     }
     if(normalizedResult.media.length||normalizedResult.pageInfo?.hasNextPage)successful.push({name:sources[index].name,result:normalizedResult});
     else if(genre==="Все"||sources[index].name==="AniList")sourceErrors.push(sources[index].name+": источник ответил, но не вернул записи");
